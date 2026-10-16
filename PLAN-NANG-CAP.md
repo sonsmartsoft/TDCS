@@ -1,193 +1,122 @@
-# PLAN NÂNG CẢ TOÀN DIỆN — TOÀN DÂN CẦU SINH
+# PLAN NÂNG CẢ TOÀN DIỆN — TOÀN DÂN CẦU SINH (Phiên bản tập trung đồ họa cực kỳ giống thật)
 
 > Dự án: game sinh tồn 3D multiplayer trên trình duyệt (Three.js + Node.js + ws).  
 > Repo: https://github.com/sonsmartsoft/TDCS.git (branch `master`)  
-> Bản hiện tại: MVP rev8 (đã commit: `25494c8`)  
-> Ngôn ngữ: Tiếng Việt. Mục tiêu: từ MVP đơn giản → sản phẩm sẵn sàng chạy public.
+> Bản hiện tại: MVP rev8 (đã commit: `25494c8` + `a94745a`)  
+> Ngôn ngữ: Tiếng Việt. Mục tiêu: từ MVP đơn giản → game 3D **cực kỳ giống thật (photorealistic / cinematic)** lấy cảm hứng từ video "Toàn Dân Mạc Lộ Cầu Sinh".  
+> Tham khảo video: `video/Toàn Dân Mạc Lộ Cầu Sinh Lần Này Ta Sẽ Đi Đến Cuối Con Đường | Kas Vietsub.mp4` (2h10m, VP9 1080p)  
+> Các khung hình trích xuất: `video/extracted-frames/` (13 ảnh đại diện)
 
 ---
 
-## 1. TÌNH TRẠNG HIỆN TẠI (MVP rev8)
+## 1. PHÂN TÍCH PHÒNG CÁCH TỪ VIDEO (đã xem 13 khung hình)
 
-### Thành phần đã có
-| Thư mục/File | Mô tả |
+| Thành phần | Mô tả từ video |
 |---|---|
-| `client/game.js` (~1144 dòng) | Three.js r128, render 3D, input, HUD, UI, offline mode |
-| `client/index.html` | Màn hình chào, HUD, túi đồ, chế tạo, chat, điều khiển cảm ứng |
-| `client/style.css` | Giao diện hologram "HỆ THỐNG" tiếng Việt |
-| `client/Dockerfile` | nginx serve static |
-| `server/server.js` (~309 dòng) | Node.js + `ws`, game loop 20 tick/s, 월드 120x120, ngày/đêm, quái, boss |
-| `server/package.json` | `ws` ^8.18.0, start: `node server.js` |
-| `server/Dockerfile` | node:20-alpine |
-| `docker-compose.yml` | server (3001) + client (8080) |
-| `COT-TRUYEN.md`, `THIET-KE-GAME.md`, `README.md` | Cốt truyện, thiết kế, hướng dẫn deploy |
-| `video/frames/` | 26 khung hình tham khảo phong cách điện khảo |
-
-### Ưu điểm
-- Chơi được ngay trên trình duyệt, không cần cài.
-- Có chế độ offline (bots) khi mất kết nối server.
-- Multiplayer real-time 16 người/phòng, chat, giao dịch thả đồ.
-- Vòng ngày/đêm 3 phút, boss ngày 30, HUD máu/đói/sức.
-
-### Hạn chế lớn nhất (cần nâng cấp cấp trước)
-1. **Server đơn file** (`server.js` ~309 dòng) — khó bảo trì, không chia module.
-2. **Không có cơ sở dữ liệu** — toàn bộ dữ liệu trong bộ nhớ, restart lại mất hết (tài khoản, tiến độ, xếp hạng).
-3. **Chưa có xác thực** — bất kỳ ai vào đặt tên gì cũng chơi, không lưu tiến trình dài hạn.
-4. **Client gộp thô** — Three.js r128 (cũ), chưa có bundler, không có âm thanh, UI programmer art.
-5. **Gameplay mỏng** — chỉ 4 công thức chế tạo, 7 loại vật phẩm, 2 loại quái + boss, không có hệ thống kỹ năng, không có trang bị, không có xây dựng cơ sở thực tế (chỉ là cờ `has_leu`/`has_tuong`).
-6. **Giao dịch nguyên sơ** — thả đồ lên đất để đổi, dễ bị trộm, không có giao diện giao dịch bảo mật.
-7. **DevOps thủ công** — chưa có CI/CD, kiểm tra sức khỏe, log, nginx config trong repo.
+| **Độ chân thực** | Nhân vật da thịt, tóc, áo tay, vết thương, mồ hôi — cực kỳ real, không phải anime/low-poly |
+| **Bối cảnh** | Đô thị tận thế ban đêm: xe hơi cũ, đường phố đổ nát, trăng lớn, sương mù, tối tăm |
+| **Quái vật** | Thú đột biến khổng lồ, thân giáp rắn/vảy, gai nhọn, mắt phát sáng, hung dữ |
+| **Giao diện Hologram** | Màn hình holo trong suốt, viền kim loại, ánh sáng xanh neon; mô hình 3D quái (xương xanh), danh sách người sống sót, chữ Trung (私聊, 梵合小王子) |
+| **Hologram trong xe** | Nhìn vào tay → xuất hiện màn hình holo danh sách người sống sót, ánh sáng xanh/vàng |
+| **Ánh sáng** | Trăng lớn, đèn neon xanh/xanh dương, bóng bokeh, sương mù, sáng/tối xen kẽ |
 
 ---
 
-## 2. MÙC TIÊU NÂNG CẢ
+## 2. MÙC TIÊU NÂNG CẢ (độ ưu tiên theo thứ tự)
 
 | Mục tiêu | Chi tiết |
 |---|---|
-| **Khả năng mở rộng** | Chia module server, thêm CSDL, xác thực, nhiều phòng (sharding sau này). |
-| **Trải nghiệm gameplay** | Hệ thống kỹ năng, trang bị, xây dựng cơ sở, giao dịch bảo mật, sự kiện boss. |
-| **Nội dung** | Nhiều loại vật phẩm (hà quý), nhiều loại quái, boss sự kiện, sương đen, nhiệm vụ. |
-| **Chất lượng kỹ thuật** | Three.js hiện đại, bundler, âm thanh, hậu xử lý, tối ưu di động, CI/CD. |
-| **Vận hành** | Tài khoản, bảng xếp hạng, lưu tiến trình, deploy tự động, giám sát. |
+| **Đồ họa cực kỳ giống thật** | Photorealistic, cinematic, PBR materials, volumetric fog, bloom, HDR, ánh sáng động |
+| **Nhân vật & quái real** | Mô hình nhân vật da thịt tóc thật, quái vật chi tiết (giáp rắn, gai, mắt phát sáng) |
+| **Giao diện Hologram "Hệ Thống"** | Màn hình holo trong suốt, viền kim loại, ánh sáng neon, hiển thị mô hình 3D, danh sách người sống sót |
+| **Nền tảng kỹ thuật** | Chia module server, CSDL, xác thực, client hiện đại (Vite + Three.js r165+) |
+| **Gameplay cốt lõi** | Kỹ năng, trang bị, xây dựng cơ sở, giao dịch bảo mật, sự kiện boss |
+| **Vận hành** | Phòng, xếp hạng, âm thanh, CI/CD, đa ngôn ngữ |
+
+> **Ưu tiên số 1:** NV-GFX (đồ họa cực kỳ giống thật) — đây là yêu cầu cốt lõi của anh.
 
 ---
 
-## 3. CHI TIẾT CÁC GÓI VIỆC (NV-01 → NV-16)
+## 3. CHI TIẾT CÁC GÓI VIỆC
 
-### Giai đoạn 1: Nền tảng & chất lượng mã (Tuần 1–2)
+### Giai đoạn 1: Đồ họa cực kỳ giống thật (Ưu tiên cao nhất)
+
+#### NV-GFX: Nâng cấp đồ họa client lên mức cực kỳ giống thật (Photorealistic / Cinematic)
+- **Mục tiêu:** Thay đổi client từ game đơn giản (Three.js r128, low-poly, programmer art) lên mức **photorealistic / cinematic** giống video tham khảo.
+- **Scope chi tiết:**
+  1. **Three.js hiện đại:** Nâng từ r128 lên r165+ (hoặc mới nhất ổn định), dùng bundler (Vite).
+  2. **PBR Materials:** Vật liệu vật lý thực tế cho mặt đất (đường nứt, nhựa, bê tông), tường đổ nát, xe hơi, người sống sót (da, tóc, áo).
+  3. **Volumetric Fog & Sương mù:** Sương mù dày đặc, thể tích, ánh sáng xuyên qua sương (god rays), độ mờ khoảng cách (fog) thay đổi theo ngày/đêm.
+  4. **Bloom & HDR:** Hiệu ứng phát sáng (bloom) cho ánh đèn neon, tia lửa, mắt quái, màn hình hologram.
+  5. **Ánh sáng động:** Trăng lớn trên trời (moon light), đèn neon xanh/xanh dương, ánh sáng xe, sấm sét, 효과 nt Léonard.
+  6. **Post-processing:** Vignette, bokeh, màu grading u ám (ton màu đen-xám-xanh đêm), contrast cao.
+  7. **Mô hình nhân vật real:** Thay mô hình khớp xương đơn giản bằng nhân vật da thịt, tóc, áo tay chi tiết (có thể dùng mô hình đã có hoặc tạo mới).
+  8. **Mô hình quái real:** Thú đột biến khổng lồ, thân giáp rắn/vảy, gai nhọn, mắt phát sáng đỏ, aura đỏ xung quanh.
+  9. **Giao diện Hologram "Hệ Thống":** Màn hình holo trong suốt, viền kim loại, ánh sáng xanh neon, hiển thị mô hình 3D quái vật (xương xanh như trong video), danh sách người sống sót, bảng điều khiển, chữ Trung/viết theo phong cách video.
+  10. **Tối ưu hiệu năng:** LOD (Level of Detail), culling, giảm chất lượng particles trên máy yếu, hỗ trợ di động (joystick, nút bấm).
+- **Files:** `client/src/gfx/*`, `client/src/postprocess.js`, `client/src/lighting.js`, `client/src/hologram.js`, `client/src/character.js`, `client/src/monsterReal.js`, `client/package.json`, `vite.config.js`, `client/Dockerfile`.
+- **Done khi:** Client render được màn hình giống video: sương mù đêm, trăng lớn, nhân vật real, quái vật chi tiết, giao diện holo Neon, bloom/hdr bật.
+
+---
+
+### Giai đoạn 2: Nền tảng & chất lượng mã
 
 #### NV-01: Chia module server (refactor `server.js`)
-- **Mục tiêu:** Tách `server.js` ra thành các module rõ ràng để dễ bảo trì.
-- **Scope:** 
-  - Tạo `server/src/` với các module: `gameState.js` (trạng thái trò chơi), `world.js` (sinh vật, thùng, đồ rơi), `network.js` (WebSocket), `gameLoop.js` (vòng lặp ticks), `handlers.js` (xử lý tin nhắn client).
-  - Giữ nguyên giao thức WebSocket hiện tại để không vỡ client.
-  - Cập nhật `server.js` chỉ làm điểm khởi tạo.
-- **Files:** `server/server.js`, tạo `server/src/*.js`, `server/package.json` (nếu cần).
-- **Done khi:** `npm start` vẫn chạy, joining/move/chat/loot/hit/craft dùng được như cũ, có thể đọc mã dễ dàng hơn.
+- **Mục tiêu:** Tách `server/server.js` thành các module trong `server/src/` (gameState, network, handlers, gameLoop), giữ nguyên giao thức WebSocket.
+- **Files:** `server/src/*.js`, `server/server.js`.
 
 #### NV-02: Thêm cơ sở dữ liệu & xác thực đơn giản
-- **Mục tiêu:** Lưu tài khoản người chơi, mật khẩu (hash), và tiến độ (hàng tồn kho, kỹ năng, ngày đạt được) để chơi lại không bị mất dữ liệu.
-- **Scope:** 
-  - Chọn SQLite (`better-sqlite3`) nhẹ, không cần cài DB riêng, phù hợp Oracle VM free tier.
-  - Bảng `users` (id, username, password_hash, created_at), bảng `player_data` (user_id, inventory, skills, crafted, last_day, last_pos).
-  - Middleware xác thực: client gửi `login`/`register` trước khi vào game; server cấp `token` (JWT đơn giản hoặc session), gắn vào mỗi kết nối WebSocket.
-  - Không bắt buộc đăng nhập ngay — giữ chế độ chơi đơn (không cần server) như cũ.
-- **Files:** `server/src/db.js`, `server/src/auth.js`, cập nhật `server/server.js` + `client/game.js`.
-- **Done khi:** Có thể đăng ký/đăng nhập, thoát game vào lại vẫn giữ túi đồ và ngày; người không đăng nhập vẫn chơi được dưới tên khách.
+- **Mục tiêu:** SQLite (`better-sqlite3`), bảng `users` + `player_data`, đăng ký/đăng nhập, token, lưu tiến độ (túi đồ, kỹ năng, ngày, vị trí). Giữ chế độ khách.
+- **Files:** `server/src/db.js`, `server/src/auth.js`, `server/package.json`, `client/game.js` (thêm UI đăng nhập).
 
 #### NV-03: Hiện đại hóa client (Three.js + bundler)
-- **Mục tiêu:** Nâng Three.js từ r128 lên phiên bản hiện đại, thêm công cụ xây dựng để dễ mở rộng.
-- **Scope:** 
-  - Thêm Vite (hoặc Parcel) làm bundler cho `client/`.
-  - Nâng Three.js lên r165+ (hoặc bản ổn định mới nhất).
-  - Tách `game.js` ra thành các module: `core.js`, `input.js`, `world.js`, `ui.js`, `network.js`.
-  - Giữ nguyên giao diện hologram hiện tại (không đổi đột ngột style).
-- **Files:** `client/package.json`, `vite.config.js`, `client/src/*.js`, `client/index.html`, `client/Dockerfile` (cập nhật build).
-- **Done khi:** `npm run dev` chạy được client, build ra static phục vụ qua nginx, Three.js cảnh báo ít hơn, mã dễ thêm tính năng mới.
+- **Mục tiêu:** Vite bundler, Three.js r165+, tách `game.js` thành module (core, world, input, ui, network).
+- **Files:** `client/package.json`, `vite.config.js`, `client/src/*.js`, `client/Dockerfile`.
 
 ---
 
-### Giai đoạn 2: Hệ thống chơi cốt lõi (Tuần 3–5)
+### Giai đoạn 3: Hệ thống chơi cốt lõi
 
 #### NV-04: Hệ thống kỹ năng (Skill)
-- **Mục tiêu:** Triển khai mô-típ "làm gì cũng lên cấp" trong THIET-KE-GAME.md.
-- **Scope:** 
-  - Kỹ năng: Đốn củi, Chiến đấu, Lục soát, Sống tồn. Mỗi kỹ năng cấp 1–10.
-  - Khi chặt cây, đánh quái, nhặt đồ → cộng kinh nghiệm, lên cấp, mở khóa công thức / hiệu ứng (ví dụ chặt nhanh hơn, đánh mạnh hơn).
-  - Lưu cấp kỹ năng vào CSDL (liên kết NV-02).
-- **Files:** `server/src/skills.js`, `client/src/skills.js`, UI hiển thị cấp kỹ năng.
-- **Done khi:** Có giao diện xem cấp kỹ năng, kinh nghiệm tăng khi hành động, công thức chế tạo mở khóa theo cấp.
+- Đốn củi, Chiến đấu, Lục soát, Sống tồn; cấp 1–10; kinh nghiệm; mở khóa công thức; lưu vào CSDL.
 
 #### NV-05: Hệ thống trang bị & vũ khí
-- **Mục tiêu:** Thay thế weapon đơn giản bằng hệ thống trang bị thực thụ.
-- **Scope:** 
-  - Ô trang bị: Vũ khí, Áo, Ngón tay, Giày (hoặc ít nhất Vũ khí + Áo).
-  - Vũ khí có chỉ số sát thương, tốc độ, độ bền. Áo tăng máu tối đa.
-  - Cơ chế sản xuất trang bị qua chế tạo; trang bị hiển thị trên mô hình nhân vật (slots đơn giản).
-- **Files:** `server/src/items.js` (mở rộng), `client/src/equipment.js`, UI trang bị.
-- **Done khi:** Có trang bị, personaggio mặc/show trang bị, stat máu/sát thương thay đổi theo trang bị.
+- Ô trang bị: Vũ khí, Áo, Ngón tay, Giày. Stat sát thương, máu tối đa, độ bền. Hiển thị trên nhân vật.
 
-#### NV-06: Xây dựng cơ sở thực tế trong thế giới
-- **Mục tiêu:** Cho phép người chơi đặt lều, tường vào thế giới 3D, không chỉ cờ `has_`.
-- **Scope:** 
-  - Chế độ xây dựng: nhấn phím (ví dụ `T`) chọn công trình (lều, tường, tháp canh), đặt vào mặt đất bằng click chuột.
-  - Công trình là mesh Three.js riêng, có máu, có thể bị quái tấn công phá hủy.
-  - Lưu vị trí công trình vào CSDL (liên kết NV-02), nạp lại khi vào lại phòng.
-- **Files:** `server/src/buildings.js`, `client/src/building.js`, công thức chế tạo liên kết với công trình.
-- **Done khi:** Người chơi đặt được ít nhất lều và tường vào thế giới, công trình tồn tại sau khi khởi động lại server.
+#### NV-06: Xây dựng cơ sở thực tế
+- Đặt lều, tường vào thế giới 3D (click chuột), công trình là mesh riêng, có máu, bị quái phá hủy, lưu vào CSDL.
 
 ---
 
-### Giai đoạn 3: Nội dung & thế giới (Tuần 6–8)
+### Giai đoạn 4: Nội dung & thế giới
 
 #### NV-07: Giao dịch bảo mật (Trade window)
-- **Mục tiêu:** Thay thế thả đồ trên đất bằng giao diện giao dịch 2 bên đồng ý.
-- **Scope:** 
-  - Mở giao diện giao dịch nhắm vào người chơi khác (phím `T` hoặc click phải).
-  - Hai bên đặt vật phẩm, nhấn "Xác nhận", hai bên cùng xác nhận → hoán đổi.
-  - Ngăn Cheat: không cho giao dịch khi đang trong khoảng tấn công, kiểm tra tồn kho trên server.
-- **Files:** `client/src/trade.js`, `server/src/trade.js`, giao thức WebSocket mới `trade_offer`, `trade_accept`.
-- **Done khi:** Hai người chơi có thể trao đổi vật phẩm an toàn, không bị mất đồ khi ngắt kết nối giữa chừng.
+- Giao diện giao dịch 2 bên đồng ý, không thả đồ trên đất, kiểm tra tồn kho server-side.
 
 #### NV-08: Nội dung thế giới (vật phẩm, quái, sự kiện)
-- **Scope:** 
-  - Vật phẩm: thêm loại hà quý (thường, hiếm, huyền thoại), thêm thuốc tăngStats tạm thời.
-  - Quái: Sói Đen (cấp 1–2), Bầy Sói + Gấu Đột Biến (cấp 3–5), quái boss riêng biệt.
-  - Sự kiện: Sương Đen xuất hiện bất chợt (giảm tầm nhìn), Boss Hắc Thú Vương ngày 30 (đã có) + boss trung gian ngày 15, 20.
-  - Bảng lấy vật phẩm (loot table) theo cấp quái.
-- **Files:** `server/src/world.js` (mở rộng spawn), `client/src/monster.js`, `client/src/item.js`.
-- **Done khi:** Có ít nhất 3 loại quái khác nhau, 2 sự kiện thế giới, vật phẩm hà quý rơi từ quái.
+- Vật phẩm hà quý (thường/hiếm/huyền thoại), 3 loại quái khác nhau, sự kiện Sương Đen, boss ngày 15/20/30.
 
-#### NV-09: Nhiệm vụ & cốt truyện trong game
-- **Scope:** 
-  - Hệ thống nhiệm vụ đơn giản (NPC/System): "Thu thập 5 mì gói", "Chết không được trong 3 ngày", "Đánh bại boss".
-  - Phần thưởng: kinh nghiệm kỹ năng, vật phẩm hiếm.
-  - Hiển thị nhiệm vụ trong HUD hologram.
-- **Files:** `server/src/quests.js`, `client/src/questUI.js`.
-- **Done khi:** Có ít nhất 5 nhiệm vụ, phần thưởng được cấp khi hoàn thành.
+#### NV-09: Nhiệm vụ & cốt chuyện trong game
+- Hệ thống nhiệm vụ đơn giản, phần thưởng kỹ năng/vật phẩm, hiển thị trong HUD hologram.
 
 ---
 
-### Giai đoạn 4: Đa người chơi & vận hành (Tuần 9–12)
+### Giai đoạn 5: Đa người chơi & vận hành
 
-#### NV-10: Hệ thống phòng (Rooms) & nhiều máy chủ
-- **Scope:** 
-  - Tạo phòng (code phòng 4–6 ký tự), tham gia phòng, phòng riêng tư/công khai.
-  - Tối đa 16 người/phòng (MVP), phòng mới tạo server process mới hoặc sharding.
-  - Danh sách phòng công khai hiển thị trong màn hình chào.
-- **Files:** `server/src/rooms.js`, `client/src/roomLobby.js`.
-- **Done khi:** Có thể tạo/tham gia phòng, người chơi khác phòng không thấy nhau.
+#### NV-10: Hệ thống phòng (Rooms)
+- Tạo/tham gia phòng (code 4–6 ký tự), phòng riêng tư/công khai, tối đa 16 người/phòng.
 
 #### NV-11: Bảng xếp hạng & thành tích
-- **Scope:** 
-  - Lưu thành tích: ngày sống sót cao nhất, boss đã đánh, quái đã hạ.
-  - Bảng xếp hạng toàn máy chủ (top 10) hiển thị trong lobby.
-  - "Quốc vận": thành tích cá nhân cộng điểm cho máy chủ (gợi ý từ COT-TRUYEN.md).
-- **Files:** `server/src/leaderboard.js`, `client/src/leaderboardUI.js`.
-- **Done khi:** Có bảng xếp hạng xem được trong lobby/game.
+- Ngày sống sót cao nhất, boss đã đánh, quái đã hạ, bảng xếp hạng toàn máy chủ, "quốc vận".
 
 #### NV-12: Âm thanh & hiệu ứng hình ảnh
-- **Scope:** 
-  - Âm thanh nền (ambient), âm thanh bước chân, đánh trúng, chuông ngày/đêm, tiếng boss.
-  - Hậu xử lý Three.js (bloom, vignette) cho phong cách điện khảo đậm hơn.
-  - Tối ưu cho di động (joystick, nút bấm, giảm chất lượng particles trên máy yếu).
-- **Files:** `client/src/audio.js`, `client/src/postprocess.js`, `client/src/mobile.js`.
-- **Done khi:** Có âm thanh, hiệu ứng hình ảnh đẹp hơn, chạy mượt trên trình duyệt di động.
+- Âm thanh nền, bước chân, đánh trúng, chuông ngày/đêm, tiếng boss; post-processing bloom/vignette; tối ưu di động.
 
 #### NV-13: DevOps & vận hành (CI/CD, deploy, giám sát)
-- **Scope:** 
-  - GitHub Actions: build & test client + server khi push.
-  - Docker Compose production-ready (healthcheck, restart policy, giới hạn tài nguyên).
-  - Nginx config (reverse proxy, WSS, SSL Let's Encrypt) đưa vào repo.
-  - Log server (winston hoặc pino), endpoint `/health`.
-  - Hướng dẫn deploy lên Oracle Cloud VM & Render cập nhật.
-- **Files:** `.github/workflows/*.yml`, `nginx.conf`, `docker-compose.prod.yml`, `README.md` cập nhật.
-- **Done khi:** `git push` tự động build, deploy lên VM được ghi rõ, server có healthcheck.
+- GitHub Actions, Docker Compose production-ready, Nginx + WSS + SSL, log, endpoint `/health`, hướng dẫn deploy Oracle VM & Render.
 
 #### NV-14: Bản dịch đa ngôn ngữ (Vi/En)
-- **Scope:** Tách chuỗi hiển thị ra file ngôn ngữ, mặc định Tiếng Việt, hỗ trợ Tiếng Anh.
-- **Files:** `client/src/locales/vi.json`, `client/src/locales/en.js`, `client/src/i18n.js`.
-- **Done khi:** Có thể chuyển đổi ngôn ngữ trong cài đặt.
+- Tách chuỗi hiển thị ra file ngôn ngữ, mặc định Tiếng Việt, hỗ trợ Tiếng Anh.
 
 ---
 
@@ -195,12 +124,11 @@
 
 | Giai đoạn | Thời gian | Gói việc | Mục tiêu chính |
 |---|---|---|---|
-| 1. Nền tảng | Tuần 1–2 | NV-01, NV-02, NV-03 | Server module, CSDL, xác thực, client hiện đại |
-| 2. Cốt lõi | Tuần 3–5 | NV-04, NV-05, NV-06 | Kỹ năng, trang bị, xây dựng cơ sở |
-| 3. Nội dung | Tuần 6–8 | NV-07, NV-08, NV-09 | Giao dịch, quái/boss/sự kiện, nhiệm vụ |
-| 4. Vận hành | Tuần 9–12 | NV-10 → NV-14 | Phòng, xếp hạng, âm thanh, CI/CD, đa ngôn ngữ |
-
-> Ưu tiên làm trước: **NV-01, NV-02, NV-03** (nền tảng). Sau đó tuỳ ý chọn NV-04...NV-06.
+| 1. Đồ họa cực kỳ giống thật | Tuần 1–2 | **NV-GFX** | Photorealistic, cinematic, PBR, fog, bloom, holo UI |
+| 2. Nền tảng | Tuần 3–4 | NV-01, NV-02, NV-03 | Module server, CSDL, xác thực, client hiện đại |
+| 3. Cốt lõi gameplay | Tuần 5–7 | NV-04, NV-05, NV-06 | Kỹ năng, trang bị, xây dựng cơ sở |
+| 4. Nội dung thế giới | Tuần 8–10 | NV-07, NV-08, NV-09 | Giao dịch, quái/boss/sự kiện, nhiệm vụ |
+| 5. Vận hành | Tuần 11–14 | NV-10 → NV-14 | Phòng, xếp hạng, âm thanh, CI/CD, đa ngôn ngữ |
 
 ---
 
@@ -208,20 +136,20 @@
 
 | Rủi ro | Mức độ | Phương án |
 |---|---|---|
-| Làm nhiều tính năng cùng lúc → mã rối | Cao | Làm theo gói việc, từng gói xong mới sang gói mới, commit thường xuyên. |
-| Client Three.js phiên bản mới đổi API | Trung bình | Nâng dần, dùng CDN bản cố định trước khi chuyển bundler. |
-| CSDL SQLite bị khóa khi nhiều ghi đồng thời | Thấp | SQLite đủ cho <100 người chơi cùng lúc; sau này chuyển PostgreSQL. |
-| Render free tier ngủ sau 15 phút | Trung bình | Khuyên dùng Oracle Cloud VM free tier (đã có hướng dẫn trong README). |
+| Three.js r165+ đổi API so với r128 | Trung bình | Nâng dần, dùng CDN bản cố định trước khi chuyển bundler. |
+| Hiệu năng đồ họa real trên trình duyệt | Cao | LOD, culling, giảm particles trên máy yếu, tùy chọn chất lượng. |
+| CSDL SQLite khóa khi nhiều ghi | Thấp | Đủ cho <100 người chơi cùng lúc; sau này chuyển PostgreSQL. |
+| Render free tier ngủ sau 15 phút | Trung bình | Khuyên dùng Oracle Cloud VM free tier (đã có trong README). |
 
 ---
 
 ## 6. CÁCH MUSE NHẬN VIỆC
 
-1. **Mã nguồn đã lên repo:** https://github.com/sonsmartsoft/TDCS.git (branch `master`). Muse có thể clone/đọc toàn bộ source.
-2. **File plan này** (`PLAN-NANG-CAP.md`) sẽ được commit cùng repo để Muse tham khảo.
-3. **Giao việc chi tiết:** Tôi sẽ tạo các file `viec-nvXX.txt` và upload vào **Drop Server** của Muse tại `https://muse.vhtatn.io.vn` (hộp `inbox`, header `X-Token`). Theo chuẩn trong `huong-dan-nhan-nv-va-phan-hoi_1.md`.
-4. **Kết quả:** Muse báo cáo vào `outbox` (`nvXX-bao-cao.md`, `nvXX.patch`). Tôi sẽ xem xét và phản hồi bằng `phan-hoi-nvXX.txt`.
+1. **Mã nguồn đã lên repo:** https://github.com/sonsmartsoft/TDCS.git (nhánh `master`). Muse có thể clone/đọc toàn bộ source.
+2. **File plan này** (`PLAN-NANG-CAP.md`) nằm trong repo để Muse tham khảo.
+3. **Giao việc chi tiết:** Tôi tạo các file `viec-nvXX.txt` và upload vào **Drop Server** của Muse tại `https://muse.vhtatn.io.vn` (hộp `inbox`, header `X-Token`). Chuẩn theo `huong-dan-nhan-nv-va-phan-hoi_1.md`.
+4. **Kết quả:** Muse báo cáo vào `outbox` (`nvXX-bao-cao.md`, `nvXX.patch`). Tôi xem xét và phản hồi bằng `phan-hoi-nvXX.txt`.
 
 ---
 
-> **Yêu cầu từ anh:** Để tôi có thể gửi việc cho Muse ngay, anh vui lòng cung cấp **X-Token** của Drop Server (`https://muse.vhtatn.io.vn`). Tôi sẽ tạo file `viec-nv01.txt`… và upload vào `inbox` cho Muse bắt đầu làm NV-01 (chia module server) đầu tiên.
+> **Yêu cầu:** Anh vui lòng cung cấp **X-Token** của Drop Server (`https://muse.vhtatn.io.vn`). Tôi sẽ upload `viec-nv-gfx.txt` (gói ưu tiên cao nhất — đồ họa cực kỳ giống thật) vào `inbox` cho Muse bắt đầu làm đầu tiên.

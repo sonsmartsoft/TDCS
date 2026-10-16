@@ -1,0 +1,131 @@
+================================================================================
+GIAO VIỆC CHO MUSE — NV-GFX: NÂNG CẤP ĐỒ HỌA CỰC KỲ GIỐNG THẬT (PHOTOREALISTIC / CINEMATIC)
+================================================================================
+Du án: Toàn Dân Cầu Sinh (TDCS)
+Repo: https://github.com/sonsmartsoft/TDCS.git (branch master)
+File plan: PLAN-NANG-CAP.md (giai đoạn 1, gói NV-GFX — ƯU TIÊN CAO NHẤT)
+Tham khảo video: video/Toàn Dân Mạc Lộ Cầu Sinh Lần Này Ta Sẽ Đi Đến Cuối Con Đường | Kas Vietsub.mp4 (2h10m, VP9 1080p)
+Các khung hình trích xuất: video/extracted-frames/ (13 ảnh đại diện)
+
+--------------------------------------------------------------------------------
+1. MỤC TIÊU
+--------------------------------------------------------------------------------
+Thay đổi client từ game đơn giản (Three.js r128, low-poly, programmer art) lên mức
+**photorealistic / cinematic** cực kỳ giống thật, lấy cảm hứng từ video "Toàn Dân
+Mạc Lộ Cầu Sinh".
+
+Độ ưu tiên: CAO NHẤT — đây là yêu cầu cốt lõi.
+
+--------------------------------------------------------------------------------
+2. PHÂN TÍCH PHÒNG CÁCH TỪ VIDEO (đã xem 13 khung hình)
+--------------------------------------------------------------------------------
+- Độ chân thực: nhân vật da thịt, tóc, áo tay, vết thương, mồ hôi — cực kỳ real.
+- Bối cảnh: đô thị tận thế ban đêm — xe hơi cũ, đường phố đổ nát, trăng lớn, sương mù, tối tăm.
+- Quái vật: thú đột biến khổng lồ, thân giáp rắn/vảy, gai nhọn, mắt phát sáng đỏ, hung dữ.
+- Giao diện Hologram "Hệ Thống": màn hình holo trong suốt, viền kim loại, ánh sáng xanh neon;
+  mô hình 3D quái (xương xanh), danh sách người sống sót, bảng điều khiển, chữ Trung
+  (私聊, 梵合小王子).
+- Hologram trong xe: nhìn vào tay → xuất hiện màn hình holo danh sách người sống sót,
+  ánh sáng xanh/vàng.
+- Ánh sáng: trăng lớn, đèn neon xanh/xanh dương, bóng bokeh, sương mù, sáng/tối xen kẽ.
+
+--------------------------------------------------------------------------------
+3. CHI TIẾT YÊU CẦU THỰC HIỆN
+--------------------------------------------------------------------------------
+3.1 Nâng Three.js từ r128 lên r165+ (hoặc bản ổn định mới nhất), dùng bundler Vite.
+    - Tạo `client/package.json` (vite, three@latest).
+    - Tạo `vite.config.js` build ra `dist/` phục vụ bằng nginx.
+    - Cập nhật `client/Dockerfile` (multi-stage build: vite build rồi copy dist vào nginx).
+    - Cập nhật `client/index.html` để tải bundle JS từ Vite (thay script thô game.js).
+
+3.2 Tách `client/game.js` (~1144 dòng) thành module:
+    - `client/src/core.js`: scene, camera, renderer, ánh sáng, bầu trời, mặt đất.
+    - `client/src/world.js`: hình hài người, quái, thùng, đồ rơi, hiệu ứng.
+    - `client/src/input.js`: bàn phím, chuột, joystick cảm ứng, click-to-move.
+    - `client/src/ui.js`: HUD, túi đồ, chế tạo, chat, màn hình chào/kết thúc.
+    - `client/src/network.js`: kết nối WebSocket, xử lý tin nhắn từ server.
+    - `client/src/main.js`: điểm khởi tạo, vòng lặp requestAnimationFrame.
+
+3.3 PBR Materials (vật liệu vật lý thực tế):
+    - Mặt đất: đường nứt, nhựa, bê tông, vô nét.
+    - Tường đổ nát, xe hơi cũ, người sống sót (da, tóc, áo tay).
+    - Sử dụng `MeshStandardMaterial` với roughness/metalness/map phù hợp.
+
+3.4 Volumetric Fog & Sương mù:
+    - Sương mù dày đặc, thể tích, ánh sáng xuyên qua (god rays).
+    - Độ mờ khoảng cách (fog) thay đổi theo ngày/đêm (đêm sương dày hơn).
+    - Có thể dùng `THREE.FogExp2` kết hợp custom shader hoặc particles sương.
+
+3.5 Bloom & HDR:
+    - Hiệu ứng phát sáng (bloom) cho ánh đèn neon, tia lửa, mắt quái, màn hình hologram.
+    - Sử dụng `UnrealBloomPass` (Three.js examples/jsm/postprocessing).
+
+3.6 Ánh sáng động:
+    - Trăng lớn trên trời (`DirectionalLight` màu xanh nhạt, vị trí cao).
+    - Đèn neon xanh/xanh dương, ánh sáng xe, sấm sét, tia lửa.
+    - Ánh sáng thay đổi theo ngày/đêm (sáng ban ngày, tối ban đêm + trăng/neon).
+
+3.7 Post-processing:
+    - Vignette, bokeh, màu grading u ám (đen-xám-xanh đêm), contrast cao.
+    - `EffectComposer` + `RenderPass` + `ShaderPass`.
+
+3.8 Mô hình nhân vật real:
+    - Thay mô hình khớp xương đơn giản bằng nhân vật da thịt, tóc, áo tay chi tiết.
+    - Có thể dùng mô hình đã có hoặc tạo mới (box procedural với texture PBR nếu chưa có model ngoài).
+    - Mắt, da, vết thương, mồ hôi chi tiết.
+
+3.9 Mô hình quái real:
+    - Thú đột biến khổng lồ, thân giáp rắn/vảy, gai nhọn, mắt phát sáng đỏ, aura đỏ xung quanh.
+    - Kích thước lớn hơn nhân vật, di chuyển hung dữ.
+
+3.10 Giao diện Hologram "Hệ Thống":
+    - Màn hình holo trong suốt, viền kim loại, ánh sáng xanh neon.
+    - Hiển thị mô hình 3D quái vật (xương xanh như trong video).
+    - Danh sách người sống sót, bảng điều khiển, chữ Trung/viết theo phong cách video.
+    - Hologram xuất hiện khi nhấn phím (ví dụ `H` hoặc nút trên màn hình).
+
+3.11 Tối ưu hiệu năng:
+    - LOD (Level of Detail), frustum culling.
+    - Giảm chất lượng particles trên máy yếu, tùy chọn chất lượng đồ họa.
+    - Hỗ trợ di động (joystick, nút bấm, điều khiển cảm ứng).
+
+3.12 Giữ nguyên tính năng cũ:
+    - Offline mode (bots) khi không có server.
+    - Vòng ngày/đêm, sấm sét, lửa, tro bay, vòng chém, tia lửa.
+    - HUD máu/đói/sức, ngày/lúc, túi đồ, chế tạo, chat, điều khiển WASD + cảm ứng.
+    - Giao thức WebSocket với server (không đổi tên sự kiện `t`).
+
+--------------------------------------------------------------------------------
+4. TIÊU CHÍ HOÀN THÀNH (Done when)
+--------------------------------------------------------------------------------
+- [ ] `cd client && npm install && npm run dev` chạy được client ở localhost.
+- [ ] `npm run build` tạo ra `dist/` có thể phục vụ bằng nginx.
+- [ ] Mở client, vào game (online hoặc offline), mọi tính năng cũ vẫn hoạt động.
+- [ ] Đồ họa render giống video: sương mù đêm, trăng lớn, nhân vật real, quái vật chi tiết,
+      giao diện holo Neon, bloom/hdr bật.
+- [ ] Có giao diện Hologram "Hệ Thống" hiển thị mô hình 3D quái + danh sách người sống sót.
+- [ ] Commit toàn bộ thay đổi lên nhánh `master` của repo TDCS với thông điệp rõ ràng.
+
+--------------------------------------------------------------------------------
+5. FILE CÓ THỂ SỬA / TẠO
+--------------------------------------------------------------------------------
+- Tạo mới: `client/package.json`, `vite.config.js`, `client/src/gfx/*`,
+  `client/src/postprocess.js`, `client/src/lighting.js`, `client/src/hologram.js`,
+  `client/src/character.js`, `client/src/monsterReal.js`, `client/src/main.js`,
+  `client/Dockerfile` (cập nhật).
+- Sửa: `client/index.html`, `.gitignore` (bo node_modules, dist).
+
+--------------------------------------------------------------------------------
+6. LIÊN HỆ / PHẢNH HỒI
+--------------------------------------------------------------------------------
+Muse báo cáo kết quả vào Drop Server `outbox` dưới tên `nv-gfx-bao-cao.md`
+(đắt buộc) và kèm `nv-gfx.patch` (nếu có thay đổi mã). Sau khi anh xem xét, anh sẽ
+phản hồi bằng file `phan-hoi-nv-gfx.txt` vào `inbox`.
+
+--------------------------------------------------------------------------------
+LIÊN KẾT THAM KHẢO
+--------------------------------------------------------------------------------
+Repo: https://github.com/sonsmartsoft/TDCS.git
+Plan: PLAN-NANG-CAP.md
+Video tham khảo: video/Toàn Dân Mạc Lộ Cầu Sinh ... .mp4 (đã có trong repo)
+================================================================================
