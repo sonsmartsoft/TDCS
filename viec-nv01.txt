@@ -1,0 +1,103 @@
+================================================================================
+GIAO VIỆC CHO MUSE — NV-01: CHIA MODULE SERVER (Refactor server.js)
+================================================================================
+Du án: Toàn Dân Cầu Sinh (TDCS)
+Repo: https://github.com/sonsmartsoft/TDCS.git (branch master, commit 25494c8)
+File plan chi tiết: PLAN-NANG-CAP.md (đã commit cùng repo)
+
+--------------------------------------------------------------------------------
+1. MỤC TIÊU
+--------------------------------------------------------------------------------
+Tách file đơn `server/server.js` (khoảng 309 dòng, làm hết hết) thành các module
+rõ ràng trong thư mục `server/src/`, giữ nguyên giao thức WebSocket hiện tại để
+không làm hỏng client (`client/game.js`).
+
+Sau khi xong: `npm start` vẫn phải chạy được, và các chức năng sau vẫn hoạt động
+như cũ: join game, di chuyển, chat, nhặt thùng, đánh quái, nhặt đồ rơi, dùng
+vật phẩm, chế tạo, hồi sinh, ngày/đêm, sinh quái/boss, broadcast vị trí.
+
+--------------------------------------------------------------------------------
+2. PHÂN TÍCH MÃ HIỆN TẠI (tham khảo)
+--------------------------------------------------------------------------------
+- `server/server.js`: chứa http server, WebSocket (ws), trạng thái game
+  (players, monsters, crates, drops, day/dayTime), vòng lặp setInterval 20 tick/s,
+  và tất cả handler tin nhắn (join/move/chat/loot/hit/pickup/drop/use/craft/respawn).
+- `server/package.json`: {"dependencies":{"ws":"^8.18.0"},"start":"node server.js"}
+- `server/Dockerfile`: node:20-alpine, copy package.json + server.js, expose 3001.
+
+--------------------------------------------------------------------------------
+3. CHI TIẾT YÊU CẦU THỰC HIỆN
+--------------------------------------------------------------------------------
+3.1 Tạo thư mục `server/src/` và các module sau:
+
+A) `server/src/gameState.js`
+   - Xuất khẩu: `players` (Map), `monsters` (Map), `crates` (array), `drops` (array),
+     `day`, `dayTime`, `seq`, `bossSpawned`, `nextId()`, `rand(a,b)`, `dist(a,b)`,
+     `isNight()`, `ITEM_NAMES`.
+   - Hàm `spawnCrate()`, `spawnMonster(boss)`.
+   - Khởi tạo 25 thùng crate khi module nạp.
+
+B) `server/src/network.js`
+   - Hàm `send(ws, obj)`, `broadcast(obj, exceptId)`.
+   - Không chứa trạng thái game, chỉ gửi dữ liệu qua WebSocket.
+
+C) `server/src/handlers.js`
+   - Xuất khẩu hàm `handleMessage(ws, pid, players, m)` xử lý tất cả loại tin nhắn
+     (join, move, chat, loot, hit, pickup, drop, use, craft, respawn).
+   - Các hàm này đọc/ghi vào `players`, `monsters`, `crates`, `drops` truyền vào.
+
+D) `server/src/gameLoop.js`
+   - Xuất khẩu hàm `startGameLoop(ioContext)` hoặc đối tượng có hàm `tick(dt)`.
+   - Chứa: cập nhật ngày/đêm, spawn quái ban đêm, boss ngày 30, AI quái đuổi player,
+     giảm đói, broadcast vị trí (10Hz) và quái (5Hz).
+   - Nhận đầu vào là các bản trạng thái cần thay đổi (players, monsters, v.v.) để
+     không phụ thuộc vào biến toàn cục.
+
+E) `server/server.js` (đã có) — viết lại thành điểm khởi tạo:
+   - Tạo http server + WebSocket server.
+   - Nhập các module trên.
+   - Xử lý kết nối ws: tạo pid, lưu `ws`, gọi `handleMessage`, xóa player khi close.
+   - Gọi game loop mỗi 50ms.
+   - Giữ endpoint HTTP GET trả về text "Toàn Dân Cầu Sinh — server đang chạy...".
+
+3.2 Giữ nguyên tên sự kiện WebSocket (`t`) và cấu trúc tin nhắn
+   (`welcome`, `join`, `players`, `monsters`, `day`, `chat`, `sys`, `inv`, `hp`,
+   `doi`, `crates`, `drops`, `dead`, `playerDead`, `respawnOk`, `craftOk`, `win`)
+   để client không cần sửa.
+
+3.3 Cập nhật `server/package.json` nếu cần thêm dependencies (khuyến khích KHÔNG
+   thêm dependency mới cho giai đoạn này, chỉ dùng `ws` + Node built-in).
+
+3.4 Cập nhật `server/Dockerfile` nếu cần (không bắt buộc thay đổi).
+
+--------------------------------------------------------------------------------
+4. TIÊU CHÍ HOÀN THÀNH (Done when)
+--------------------------------------------------------------------------------
+- [ ] `cd server && npm install && npm start` khởi động thành công, in log cổng.
+- [ ] Mở `client/index.html`, nhập `ws://localhost:3001`, vào game được.
+- [ ] Có thể join với nhiều tab/trình duyệt cùng lúc, thấy nhau di chuyển (16 người).
+- [ ] Chat, nhặt thùng, đánh quái, dùng thuốc/mì, chế tạo gậy/dao, hồi sinh vẫn chạy đúng.
+- [ ] Ngày chuyển sang đêm, quái sinh ra, boss ngày 30 xuất hiện.
+- [ ] Code trong `server/src/` rõ ràng, mỗi module có trách nhiệm duy nhất.
+- [ ] Commit toàn bộ thay đổi lên nhánh `master` của repo TDCS với thông điệp rõ ràng.
+
+--------------------------------------------------------------------------------
+5. FILE CÓ THỂ SỬA / TẠO
+--------------------------------------------------------------------------------
+- Tạo mới: `server/src/gameState.js`, `server/src/network.js`, `server/src/handlers.js`, `server/src/gameLoop.js`
+- Sửa: `server/server.js`
+- Tùy chọn: `server/package.json`
+
+--------------------------------------------------------------------------------
+6. LIÊN HỆ / PHẢNH HỒI
+--------------------------------------------------------------------------------
+Muse báo cáo kết quả vào Drop Server `outbox` dưới tên `nv01-bao-cao.md`
+(đắt buộc) và kèm `nv01.patch` (nếu có thay đổi mã). Sau khi anh xem xét, anh sẽ
+phản hồi bằng file `phan-hoi-nv01.txt` vào `inbox`.
+
+--------------------------------------------------------------------------------
+LINK THAM KHẢO
+--------------------------------------------------------------------------------
+Repo: https://github.com/sonsmartsoft/TDCS.git
+Plan: PLAN-NANG-CAP.md (giai đoạn 1, gói NV-01)
+================================================================================

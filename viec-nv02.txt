@@ -1,0 +1,86 @@
+================================================================================
+GIAO VIỆC CHO MUSE — NV-02: THÊM CƠ SỞ DỮ LIỆU & XÁC THỰC ĐƠN GIẢN
+================================================================================
+Du án: Toàn Dân Cầu Sinh (TDCS)
+Repo: https://github.com/sonsmartsoft/TDCS.git (branch master)
+File plan: PLAN-NANG-CAP.md (giai đoạn 1, gói NV-02)
+Yêu cầu trước: NV-01 (chia module server) đã hoàn thành.
+
+--------------------------------------------------------------------------------
+1. MỤC TIÊU
+--------------------------------------------------------------------------------
+Lưu tài khoản người chơi và tiến độ chơi vào cơ sở dữ liệu để người chơi không
+bị mất dữ liệu khi thoát game / khởi động lại server.
+
+- CSDL: SQLite (thu vien `better-sqlite3`) — nhẹ, khong can cai DB rieng, phu hop
+  voi Oracle Cloud VM free tier (da duoc khuyen nghich trong README.md).
+- Xac thuc: dang ky / dang nhap, server cap token (JWT don gian hoac session),
+  gắn vao moi ket noi WebSocket.
+- Giu nguyen che do cho khach (khong dang nhap) va choi don (khong can server).
+
+--------------------------------------------------------------------------------
+2. CHI TIẾT YÊU CẦU
+--------------------------------------------------------------------------------
+2.1 Cai dat dependency
+   - Them `better-sqlite3` vao `server/package.json` (hoac `sqlite3` neu an toan hon
+     voi moi truong ARM/Oracle, Muse chon thanh vien phu hop nhat).
+   - Cap nhat `server/Dockerfile` neu can cai build tools cho native module.
+
+2.2 Tao module CSDL: `server/src/db.js`
+   - Khoi tao file CSDL (vi du `data/tdcs.sqlite`).
+   - Bang `users`: id TEXT PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT,
+     created_at TEXT.
+   - Bang `player_data`: user_id TEXT PRIMARY KEY, inventory JSON, skills JSON,
+     crafted JSON, last_day INTEGER, last_x REAL, last_z REAL, updated_at TEXT.
+   - Ham: `getUserByUsername(username)`, `createUser(username, password_hash)`,
+     `getPlayerData(user_id)`, `savePlayerData(user_id, data)`.
+
+2.3 Tao module xac thuc: `server/src/auth.js`
+   - Hash mat khau (bcryptjs hoac Node crypto scrypt/pbkdf2).
+   - Tao token (jsonwebtoken hoac chuoi ngau nhien luu trong Map bo nho dem).
+   - Ham xac thuc token tu client.
+
+2.4 Cap nhat giao thuc WebSocket (client game.js cung can sua, xem 2.5)
+   - Them loai tin nhan `login` (username, password) va `register` (username, password).
+   - Server tra ve `authOk` (token, user_id) hoac `authFail` (ly do).
+   - Khoi them loai tin nhan `join` chi chap nhan khi da co token hop le (hoac cho
+     phep khach voi user_id = null).
+
+2.5 Cap nhat client (`client/game.js`)
+   - Them man hinh dang nhap/dang ky ngan (co the o man hinh chao hien tai hoac
+     panel rut gon) truoc khi nhap dia chi server.
+   - Gui `login`/`register` sau khi ket noi WebSocket, nhan token, sau moi gui
+     `join` kèm token.
+   - Giu nguyen che do cho khach: neu bo trong ten dang nhap -> choi duoi ten khach,
+     khong luu du lieu vao CSDL.
+
+2.6 Luu tai khoan va tien trinh
+   - Khi player ngat ket noi hoac khoi dong lai server: luu `player_data`
+     (tu bao, ky nang, da hoa tat, ngay, vi tri) vao CSDL.
+   - Khi player dang nhap vao game: nap `player_data` tu CSDL va khoi phuc trang
+     thai.
+
+--------------------------------------------------------------------------------
+3. TIÊU CHÍ HOÀN THÀNH
+--------------------------------------------------------------------------------
+- [ ] `npm install` trong `server/` thanh cong (bo sung dependency neu co).
+- [ ] Dang ky tai khoan moi thanh cong, dang nhap duoc.
+- [ ] Dang nhap, choi xong, thoat, dang nhap lai -> van co tu bao, ngay, vi tri cu.
+- [ ] Nguoi choi khach (khong dang nhap) van vao duoc choi don / choi nhieu nguoi
+      ma khong luu du lieu.
+- [ ] Mat khau duoc bam ma (khong luu mat khau ro rong trong CSDL).
+- [ ] Commit thay doi len nhánh `master` co thong diep rang ro.
+
+--------------------------------------------------------------------------------
+4. FILE CÓ THỂ SỬA / TẠO
+--------------------------------------------------------------------------------
+- Tao moi: `server/src/db.js`, `server/src/auth.js`, `server/data/` (thu muc CSDL,
+  them vao .gitignore neu can)
+- Sua: `server/server.js`, `server/package.json`, `server/Dockerfile`,
+  `client/game.js`, `client/index.html` (neu them UI dang nhap), `.gitignore`
+
+--------------------------------------------------------------------------------
+5. LIÊN HỆ / PHẢNH HỒI
+--------------------------------------------------------------------------------
+Bao cao: `nv02-bao-cao.md` (bat buoc), patch: `nv02.patch` (neu co).
+================================================================================

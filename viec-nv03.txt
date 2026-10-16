@@ -1,0 +1,72 @@
+================================================================================
+GIAO VIỆC CHO MUSE — NV-03: HIỆN ĐẠI HÓA CLIENT (Three.js + Bundler)
+================================================================================
+Du án: Toàn Dân Cầu Sinh (TDCS)
+Repo: https://github.com/sonsmartsoft/TDCS.git (branch master)
+File plan: PLAN-NANG-CAP.md (giai đoạn 1, gói NV-03)
+Yêu cầu trước: NV-01 (khuyến khích), có thể làm song song.
+
+--------------------------------------------------------------------------------
+1. MỤC TIÊU
+--------------------------------------------------------------------------------
+Nâng Three.js từ r128 lên phiên bản hiện đại (r165+), thêm công cụ xây dựng
+(bundler) để mã client dễ mở rộng, đồng thời GIỮ NGUYÊN giao diện hologram
+tiếng Việt hiện tại (không đổi đột ngột style).
+
+--------------------------------------------------------------------------------
+2. CHI TIẾT YÊU CẦU
+--------------------------------------------------------------------------------
+2.1 Thêm bundler (khuyến khích Vite)
+   - Tạo `client/package.json` với `vite`, `three` (phiên bản mới nhất ổn định).
+   - Tạo `vite.config.js` build ra thư mục `dist/` phục vụ bằng nginx.
+   - Cập nhật `client/Dockerfile`: build bằng Vite rồi copy `dist/` vào nginx
+     (hoặc dùng multi-stage build).
+
+2.2 Tách `client/game.js` (khoảng 1144 dòng) thành các module:
+   - `client/src/core.js`: khởi tạo Three.js (scene, camera, renderer, ánh sáng, bầu trời, mặt đất).
+   - `client/src/world.js`: hình hài người sống sót, quái, thùng, đồ rơi, hiệu ứng.
+   - `client/src/input.js`: bàn phím, chuột, joystick cảm ứng, click-to-move.
+   - `client/src/ui.js`: HUD, túi đồ, chế tạo, chat, màn hình chào/kết thúc.
+   - `client/src/network.js`: kết nối WebSocket, xử lý tin nhắn từ server.
+   - `client/src/main.js`: điểm khởi tạo, vòng lặp requestAnimationFrame.
+
+2.3 Nâng Three.js lên r165+
+   - Thay `<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">`
+     bằng import từ npm bundle (qua Vite).
+   - Kiểm tra các API dùng: `Scene`, `PerspectiveCamera`, `WebGLRenderer`,
+     `MeshStandardMaterial`, `Sprite`, `CanvasTexture`, `BufferGeometry`,
+     `Raycaster`, `FogExp2`, `DirectionalLight`, `PointLight`, `HemisphereLight`,
+     `SphereGeometry`, `BoxGeometry`, `CylinderGeometry`, `ConeGeometry`,
+     `OctahedronGeometry`, `RingGeometry`, `Group`, `BufferAttribute`.
+   - Nếu API bị thay đổi, điều chỉnh mức tối thiểu để chạy được.
+
+2.4 Giữ nguyên tính năng
+   - Offline mode (bots) khi không có server.
+   - Vòng ngày/đêm, sấm sét, lửa, tro bay, vòng chém, tia lửa.
+   - HUD máu/đói/sức, ngày/lúc, túi đồ, chế tạo, chat, điều khiển WASD + cảm ứng.
+   - Giao thức WebSocket với server (không đổi tên sự kiện `t`).
+
+2.5 Cập nhật `client/index.html` để tải bundle JS từ Vite (thay script thô `game.js`).
+
+--------------------------------------------------------------------------------
+3. TIÊU CHÍ HOÀN THÀNH
+--------------------------------------------------------------------------------
+- [ ] `cd client && npm install && npm run dev` chạy được client ở localhost.
+- [ ] `npm run build` tạo ra `dist/` có thể phục vụ bằng nginx.
+- [ ] Mở client, vào game (online hoặc offline), mọi tính năng cũ vẫn hoạt động:
+      di chuyển, xoay camera, nhặt, đánh, chế tạo, chat, ngày/đêm,offline bots.
+- [ ] Không còn gọi Three.js qua CDN r128, dùng bản hiện đại qua bundler.
+- [ ] Commit thay đổi lên nhánh `master` với thông điệp rõ ràng.
+
+--------------------------------------------------------------------------------
+4. FILE CÓ THỂ SỬA / TẠO
+--------------------------------------------------------------------------------
+- Tao moi: `client/package.json`, `vite.config.js`, `client/src/*.js`,
+  `client/Dockerfile` (cap nhat neu can)
+- Sua: `client/index.html`, `.gitignore` (bo node_modules, dist)
+
+--------------------------------------------------------------------------------
+5. LIÊN HỆ / PHẢNH HỒI
+--------------------------------------------------------------------------------
+Bao cao: `nv03-bao-cao.md` (bat buoc), patch: `nv03.patch` (neu co).
+================================================================================
