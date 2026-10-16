@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Toàn Dân Cầu Sinh — Game sinh tồn 3D multiplayer</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div id="game-container"></div>
+<div id="vignette"></div>
+<div id="dmg-flash"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="stats" class="holo">
+    <div class="bar-row"><span class="bar-label">Máu</span><div class="bar"><div id="bar-hp" class="fill hp"></div></div></div>
+    <div class="bar-row"><span class="bar-label">Đói</span><div class="bar"><div id="bar-doi" class="fill doi"></div></div></div>
+    <div class="bar-row"><span class="bar-label">Sức</span><div class="bar"><div id="bar-theluc" class="fill theluc"></div></div></div>
+  </div>
+  <div id="day-box" class="holo"><div id="day-num">Ngày 1</div><div id="day-phase">☀️ Ban ngày</div></div>
+  <div id="sysmsg"></div>
+  <div id="hotbar"></div>
+  <div id="chat-box"><div id="chat-log"></div><input id="chat-input" placeholder="Nhấn Enter để chat..." maxlength="120"></div>
+  <div id="hint">WASD / ←↑↓→ / joystick di chuyển · <b>Click</b> vào đất/quái để tự đi/tấn công · Kéo chuột xoay · Space đánh · <b>E</b> nhặt · <b>B</b> chế tạo · <b>Enter</b> chat</div>
+  <div id="joystick"><div id="joy-knob"></div></div>
+  <div id="btn-loot" class="ctl-btn" title="Nhặt đồ (E)">🤲</div>
+  <div id="btn-atk" class="ctl-btn" title="Đánh (Space)">⚔️</div>
+</div>
+
+<!-- Túi đồ -->
+<div id="inventory" class="panel hidden">
+  <h3>Túi đồ <span class="close" data-close="inventory">✕</span></h3>
+  <div id="inv-grid"></div>
+  <p class="tip">Click vật phẩm để dùng · Shift+Click để đánh rơi 1 cái</p>
+</div>
+
+<!-- Chế tạo -->
+<div id="craft" class="panel hidden">
+  <h3>Chế tạo <span class="close" data-close="craft">✕</span></h3>
+  <div id="craft-list"></div>
+</div>
+
+<!-- Màn hình chào -->
+<div id="start-screen">
+  <div class="start-card">
+    <h1>TOÀN DÂN CẦU SINH</h1>
+    <div class="sys-tag">◆ HỆ THỐNG SINH TỒN ◆</div>
+    <p class="subtitle">Trùng sinh về Ngày 1 — Sống sót 30 ngày giữa thành phố chết.<br>Ngày 30, Hắc Thú Vương giáng lâm.</p>
+    <input id="player-name" placeholder="Tên của bạn..." maxlength="16">
+    <input id="server-url" placeholder="Địa chỉ server (để trống = chơi đơn)">
+    <button id="btn-start">VÀO GAME</button>
+    <p class="note">Để trống địa chỉ server để chơi đơn offline.<br>Muốn chơi cùng người khác: nhập địa chỉ WebSocket, ví dụ <code>wss://ten-server.onrender.com</code></p>
+  </div>
+</div>
+
+<!-- Chết / Thắng -->
+<div id="end-screen" class="hidden">
+  <div class="start-card">
+    <h1 id="end-title">BẠN ĐÃ GỤC NGÃ</h1>
+    <p id="end-desc" class="subtitle"></p>
+    <button id="btn-respawn">HỒI SINH</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

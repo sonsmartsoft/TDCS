@@ -1,0 +1,1 @@
+{"dependencies":{"ws":"^8.18.0"},"description":"Server multiplayer cho game Toan Dan Cau Sinh (Node.js + WebSocket)","license":"MIT","main":"server.js","name":"toan-dan-cau-sinh-server","scripts":{"start":"node server.js"},"version":"1.0.0"}
