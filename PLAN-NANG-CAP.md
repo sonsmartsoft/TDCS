@@ -2,7 +2,7 @@
 
 > Dự án: game sinh tồn 3D multiplayer trên trình duyệt (Three.js + Node.js + ws).  
 > Repo: https://github.com/sonsmartsoft/TDCS.git (branch `master`)  
-> Bản hiện tại: MVP rev8 (đã commit: `25494c8` + `a94745a`)  
+> Bản hiện tại: rev10 (đã merge `main` vào `master`; code rev10: nhân vật Soldier.glb 3D, quái 4 chân, click-to-move, multiplayer)  
 > Ngôn ngữ: Tiếng Việt. Mục tiêu: từ MVP đơn giản → game 3D **cực kỳ giống thật (photorealistic / cinematic)** lấy cảm hứng từ video "Toàn Dân Mạc Lộ Cầu Sinh".  
 > Tham khảo video: `video/Toàn Dân Mạc Lộ Cầu Sinh Lần Này Ta Sẽ Đi Đến Cuối Con Đường | Kas Vietsub.mp4` (2h10m, VP9 1080p)  
 > Các khung hình trích xuất: `video/extracted-frames/` (13 ảnh đại diện)
