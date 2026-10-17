@@ -6,6 +6,8 @@
 <title>Toàn Dân Cầu Sinh — Game sinh tồn 3D multiplayer</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 </head>
 <body>
 <div id="game-container"></div>
@@ -20,6 +22,11 @@
     <div class="bar-row"><span class="bar-label">Sức</span><div class="bar"><div id="bar-theluc" class="fill theluc"></div></div></div>
   </div>
   <div id="day-box" class="holo"><div id="day-num">Ngày 1</div><div id="day-phase">☀️ Ban ngày</div></div>
+  <div id="objective" class="holo"><span id="obj-text">◈ MỤC TIÊU: Sống sót</span></div>
+  <div id="boss-bar" class="hidden">
+    <div id="boss-name">👹 HẮC THÚ VƯƠNG</div>
+    <div class="bar boss"><div id="bar-boss" class="fill"></div></div>
+  </div>
   <div id="sysmsg"></div>
   <div id="hotbar"></div>
   <div id="chat-box"><div id="chat-log"></div><input id="chat-input" placeholder="Nhấn Enter để chat..." maxlength="120"></div>

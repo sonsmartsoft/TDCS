@@ -105,6 +105,11 @@ function offlineTick(dt) {
     const a = Math.random() * Math.PI * 2, r = 50;
     offMonsters.push({ id: 'm' + Date.now() + Math.random(), x: Math.cos(a) * r, z: Math.sin(a) * r, hp: 40 + G.day * 6, maxHp: 40 + G.day * 6, speed: 2.4, dmg: 6 + G.day, atkCd: 0 });
   }
+  // boss ngày 30
+  if (G.day >= 30 && G.night && !offMonsters.some(m => m.boss)) {
+    offMonsters.push({ id: 'boss' + Date.now(), boss: true, x: 40, z: 0, hp: 1500, maxHp: 1500, speed: 3.2, dmg: 35, atkCd: 0 });
+    sysMsg('CẢNH BÁO: HẮC THÚ VƯƠNG đã xuất hiện!');
+  }
   for (const mo of offMonsters) {
     mo.atkCd -= dt;
     const dx = G.pos.x - mo.x, dz = G.pos.z - mo.z, d = Math.hypot(dx, dz);
@@ -185,30 +190,30 @@ function initThree() {
   lightningLight.position.set(0, 100, 0);
   scene.add(lightningLight);
 
-  // --- Mặt đất: nhựa đường nứt + mảnh vụn ---
-  const gCanvas = document.createElement('canvas'); gCanvas.width = gCanvas.height = 512;
+  // --- Mặt đất: nhựa đường nứt + mảnh vụn (chi tiết cao) ---
+  const gCanvas = document.createElement('canvas'); gCanvas.width = gCanvas.height = 1024;
   const g = gCanvas.getContext('2d');
-  g.fillStyle = '#1d1c22'; g.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 900; i++) { // mảnh vụn
+  g.fillStyle = '#1d1c22'; g.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < 2600; i++) { // mảnh vụn
     g.fillStyle = 'rgba(' + (30 + Math.random() * 40) + ',' + (30 + Math.random() * 38) + ',' + (34 + Math.random() * 40) + ',0.8)';
-    g.fillRect(Math.random() * 512, Math.random() * 512, 1 + Math.random() * 4, 1 + Math.random() * 3);
+    g.fillRect(Math.random() * 1024, Math.random() * 1024, 1 + Math.random() * 5, 1 + Math.random() * 4);
   }
-  for (let i = 0; i < 12; i++) { // vệt cháy đen
-    const bx = Math.random() * 512, by = Math.random() * 512, br = 20 + Math.random() * 50;
+  for (let i = 0; i < 26; i++) { // vệt cháy đen
+    const bx = Math.random() * 1024, by = Math.random() * 1024, br = 30 + Math.random() * 90;
     const bg = g.createRadialGradient(bx, by, 2, bx, by, br);
     bg.addColorStop(0, 'rgba(5,5,8,0.7)'); bg.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = bg; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
   }
   g.strokeStyle = '#0c0c10'; g.lineWidth = 3;
-  for (let i = 0; i < 46; i++) { // vết nứt
+  for (let i = 0; i < 60; i++) { // vết nứt lớn
     g.beginPath(); let x = Math.random() * 512, y = Math.random() * 512; g.moveTo(x, y);
-    for (let j = 0; j < 7; j++) { x += (Math.random() - .5) * 100; y += (Math.random() - .5) * 100; g.lineTo(x, y); }
+    for (let j = 0; j < 8; j++) { x += (Math.random() - .5) * 130; y += (Math.random() - .5) * 130; g.lineTo(x, y); }
     g.stroke();
   }
-  g.strokeStyle = 'rgba(60,50,40,0.5)'; g.lineWidth = 1.5; // nứt nhỏ
-  for (let i = 0; i < 60; i++) {
-    g.beginPath(); let x = Math.random() * 512, y = Math.random() * 512; g.moveTo(x, y);
-    x += (Math.random() - .5) * 60; y += (Math.random() - .5) * 60; g.lineTo(x, y); g.stroke();
+  g.strokeStyle = 'rgba(60,50,40,0.5)'; g.lineWidth = 2; // nứt nhỏ
+  for (let i = 0; i < 110; i++) {
+    g.beginPath(); let x = Math.random() * 1024, y = Math.random() * 1024; g.moveTo(x, y);
+    x += (Math.random() - .5) * 80; y += (Math.random() - .5) * 80; g.lineTo(x, y); g.stroke();
   }
   const gTex = new THREE.CanvasTexture(gCanvas);
   gTex.wrapS = gTex.wrapT = THREE.RepeatWrapping; gTex.repeat.set(16, 16);
@@ -220,6 +225,7 @@ function initThree() {
   scene.add(ground);
 
   buildRuins();
+  buildSkyline();
   buildFires();
   buildAsh();
 
@@ -319,6 +325,28 @@ function buildRuins() {
   }
 }
 
+// --- Đường chân trời: bóng thành phố xa trong sương ---
+function buildSkyline() {
+  const mat = new THREE.MeshBasicMaterial({ color: 0x0a0a14 });
+  for (let i = 0; i < 30; i++) {
+    const w = 10 + Math.random() * 18, h = 25 + Math.random() * 55, d = 10 + Math.random() * 14;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    const a = (i / 30) * Math.PI * 2 + Math.random() * 0.15;
+    const r = 105 + Math.random() * 45;
+    b.position.set(Math.cos(a) * r, h / 2 - 4, Math.sin(a) * r);
+    scene.add(b);
+    // vài ô cửa sổ le lói phía xa
+    if (Math.random() < 0.5) {
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.6, h * 0.4),
+        new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.1 }));
+      win.position.set(b.position.x, b.position.y, b.position.z);
+      win.lookAt(0, b.position.y, 0);
+      win.translateZ(d / 2 + 0.1);
+      scene.add(win);
+    }
+  }
+}
+
 // --- Đám lửa cháy + đèn nhấp nháy ---
 function buildFires() {
   for (let i = 0; i < 5; i++) {
@@ -370,7 +398,7 @@ function buildAsh() {
 }
 
 // --- Người sống sót: mô hình chi tiết có khớp xương ---
-function makeHumanoid(shirtColor, name) {
+function makeFallbackHumanoid(shirtColor, name) {
   const grp = new THREE.Group();
   const cloth = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.85 });
   const jeans = new THREE.MeshStandardMaterial({ color: 0x2e3646, roughness: 0.9 });
@@ -457,15 +485,7 @@ function makeHumanoid(shirtColor, name) {
   // cổ áo hoodie
   mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.16, 10, 1, true), cloth, grp, 0, 1.62, 0);
 
-  if (name) {
-    const c = document.createElement('canvas'); c.width = 256; c.height = 48;
-    const x = c.getContext('2d'); x.font = 'bold 26px Arial'; x.textAlign = 'center';
-    x.fillStyle = 'rgba(2,10,16,.6)'; x.fillRect(0, 0, 256, 48);
-    x.strokeStyle = 'rgba(0,229,255,.7)'; x.strokeRect(1, 1, 254, 46);
-    x.fillStyle = '#bdf3ff'; x.fillText(name.slice(0, 12), 128, 33);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
-    sp.scale.set(2.4, 0.45, 1); sp.position.y = 2.55; grp.add(sp);
-  }
+  if (name) grp.add(makeNameSprite(name));
   grp.userData = {
     hipL: legL.hip, kneeL: legL.knee, hipR: legR.hip, kneeR: legR.knee,
     shL: armL.sh, elbL: armL.elb, shR: armR.sh, elbR: armR.elb,
@@ -493,46 +513,143 @@ function animSurvivor(u, moving, t, dt, punch) {
   if (!moving && u.headG) u.headG.rotation.y = Math.sin(t * 0.6) * 0.08;
   return moving ? Math.abs(Math.cos(t * 9.5)) * 0.055 : 0;
 }
+// bảng tên hologram
+function makeNameSprite(name) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 48;
+  const x = c.getContext('2d'); x.font = 'bold 26px Arial'; x.textAlign = 'center';
+  x.fillStyle = 'rgba(2,10,16,.6)'; x.fillRect(0, 0, 256, 48);
+  x.strokeStyle = 'rgba(0,229,255,.7)'; x.strokeRect(1, 1, 254, 46);
+  x.fillStyle = '#bdf3ff'; x.fillText(name.slice(0, 12), 128, 33);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+  sp.scale.set(2.4, 0.45, 1); sp.position.y = 2.35;
+  return sp;
+}
+
+// --- MODEL NGƯỜI 3D THẬT (GLTF) ---
+let soldierTpl = null;   // { scene, clips }
+const charMixers = [];   // danh sách { mixer, actions, cur } để update mỗi frame
+function loadSoldier(cb) {
+  if (!THREE.GLTFLoader || !THREE.SkeletonUtils) { cb(false); return; }
+  new THREE.GLTFLoader().load('models/Soldier.glb', (gltf) => {
+    const clips = {};
+    gltf.animations.forEach(c => { clips[c.name] = c; });
+    soldierTpl = { scene: gltf.scene, clips };
+    cb(true);
+  }, undefined, () => cb(false));
+}
+function makeHumanoid(shirtColor, name) {
+  if (soldierTpl && THREE.SkeletonUtils) {
+    const root = new THREE.Group();
+    const model = THREE.SkeletonUtils.clone(soldierTpl.scene);
+    model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    root.add(model);
+    const mixer = new THREE.AnimationMixer(model);
+    const actions = {};
+    for (const n in soldierTpl.clips) actions[n] = mixer.clipAction(soldierTpl.clips[n]);
+    const ud = { isGLTF: true, mixer, actions, cur: null };
+    root.userData = ud;
+    if (name) root.add(makeNameSprite(name));
+    charMixers.push(ud);
+    setCharAnim(ud, 'Idle');
+    return root;
+  }
+  return makeFallbackHumanoid(shirtColor, name); // rớt mạng -> dùng nhân vật cũ
+}
+function setCharAnim(ud, name) {
+  if (!ud.isGLTF || ud.cur === name || !ud.actions[name]) return;
+  const prev = ud.cur && ud.actions[ud.cur];
+  if (prev) prev.fadeOut(0.18);
+  ud.actions[name].reset().fadeIn(0.18).play();
+  ud.cur = name;
+}
+function removeCharMixer(root) {
+  const ud = root.userData;
+  if (ud && ud.isGLTF) {
+    const i = charMixers.indexOf(ud);
+    if (i >= 0) charMixers.splice(i, 1);
+  }
+}
 function buildPlayer() {
   playerMesh = makeHumanoid(0x181824, null);
   scene.add(playerMesh);
 }
 
-// --- Hắc Thú: thân gai, mắt đỏ, hào quang đỏ ---
+// --- Hắc Thú v2: thú 4 chân, hàm há được, đuôi vẫy, mắt đỏ ---
 function makeMonster(boss) {
   const grp = new THREE.Group();
-  const s = boss ? 2.6 : 1;
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0e0e15, roughness: 0.6 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.95 * s, 12, 10), bodyMat);
-  body.position.y = 0.95 * s; body.castShadow = true; body.scale.y = 1.15; grp.add(body);
-  const spikeMat = new THREE.MeshStandardMaterial({ color: 0x262633, roughness: 0.5 });
-  const nSp = boss ? 14 : 8;
-  for (let i = 0; i < nSp; i++) {
-    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.15 * s, (0.6 + Math.random() * 0.5) * s, 6), spikeMat);
-    const a = (i / nSp) * Math.PI * 2, e = Math.random() * Math.PI;
-    sp.position.set(Math.cos(a) * Math.sin(e) * 0.85 * s, 0.95 * s + Math.cos(e) * 0.85 * s, Math.sin(a) * Math.sin(e) * 0.85 * s);
-    sp.lookAt(sp.position.clone().multiplyScalar(2).setY(sp.position.y * 2));
-    sp.rotateX(Math.PI / 2);
-    grp.add(sp);
-  }
-  // hàm răng
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7 * s, 0.22 * s, 0.3 * s), spikeMat);
-  jaw.position.set(0, 0.62 * s, 0.72 * s); grp.add(jaw);
-  // mắt đỏ phát sáng + hào quang
+  const s = boss ? 2.4 : 1;
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0d0d14, roughness: 0.55 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e1e2a, roughness: 0.5 });
+  const mouthMat = new THREE.MeshStandardMaterial({ color: 0x3a0d12, roughness: 0.7 });
+
+  // thân dài, khom về trước
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.95 * s, 14, 12), bodyMat);
+  body.position.set(0, 1.05 * s, -0.1 * s); body.scale.set(1, 0.92, 1.35);
+  body.castShadow = true; grp.add(body);
+  // đầu + hàm dưới há được
+  const headG = new THREE.Group(); headG.position.set(0, 1.35 * s, 1.05 * s); grp.add(headG);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.5 * s, 12, 10), bodyMat);
+  skull.scale.set(1, 0.85, 1.1); skull.castShadow = true; headG.add(skull);
+  const jawG = new THREE.Group(); jawG.position.set(0, -0.18 * s, 0.15 * s); headG.add(jawG);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.55 * s, 0.16 * s, 0.6 * s), mouthMat);
+  jaw.position.set(0, -0.08 * s, 0.25 * s); jawG.add(jaw);
+  // răng nanh
+  const fangM = new THREE.MeshStandardMaterial({ color: 0xcfc4ae, roughness: 0.4 });
+  [-1, 1].forEach(sd => {
+    const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.05 * s, 0.22 * s, 6), fangM);
+    f1.position.set(0.2 * sd * s, -0.3 * s, 0.45 * s); f1.rotation.x = Math.PI; headG.add(f1);
+    const f2 = new THREE.Mesh(new THREE.ConeGeometry(0.04 * s, 0.16 * s, 6), fangM);
+    f2.position.set(0.18 * sd * s, 0.02 * s, 0.5 * s); jawG.add(f2);
+  });
+  // mắt đỏ phát sáng
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
-  const e1 = new THREE.Mesh(new THREE.SphereGeometry(0.12 * s), eyeMat); e1.position.set(-0.3 * s, 1.2 * s, 0.78 * s); grp.add(e1);
-  const e2 = e1.clone(); e2.position.x = 0.3 * s; grp.add(e2);
-  const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.4 }));
-  aura.scale.set(3.4 * s, 3.4 * s, 1); aura.position.y = 1.1 * s; grp.add(aura);
+  [-1, 1].forEach(sd => {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.11 * s, 10, 8), eyeMat);
+    e.position.set(0.24 * sd * s, 0.12 * s, 0.38 * s); headG.add(e);
+  });
+  const eyeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.75 }));
+  eyeGlow.scale.set(1.1 * s, 0.7 * s, 1); eyeGlow.position.set(0, 0.12 * s, 0.5 * s); headG.add(eyeGlow);
+  // gai dọc sống lưng
+  const nSp = boss ? 10 : 7;
+  for (let i = 0; i < nSp; i++) {
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.14 * s, (0.55 + Math.random() * 0.45) * s, 6), darkMat);
+    const zz = (0.9 - (i / (nSp - 1))) * 1.5 * s;
+    sp.position.set(0, (1.75 - Math.abs(zz) * 0.25) * s, zz);
+    sp.rotation.x = -0.25 - (i / nSp) * 0.5;
+    sp.castShadow = true; grp.add(sp);
+  }
+  // 4 chân có khớp
+  const legs = [];
+  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([sx, sz]) => {
+    const hip = new THREE.Group(); hip.position.set(0.55 * sx * s, 0.85 * s, 0.55 * sz * s); grp.add(hip);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.14 * s, 0.1 * s, 0.6 * s, 8), bodyMat);
+    upper.position.y = -0.3 * s; upper.castShadow = true; hip.add(upper);
+    const low = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.07 * s, 0.55 * s, 8), darkMat);
+    low.position.y = -0.75 * s; hip.add(low);
+    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.11 * s, 0.28 * s, 6), darkMat);
+    claw.position.y = -1.05 * s; claw.rotation.x = Math.PI; hip.add(claw);
+    legs.push(hip);
+  });
+  // đuôi gai vẫy
+  const tail = new THREE.Group(); tail.position.set(0, 1.15 * s, -1.35 * s); grp.add(tail);
+  let parent = tail;
+  for (let i = 0; i < 3; i++) {
+    const seg = new THREE.Group(); if (i) seg.position.set(0, 0.05 * s, -0.5 * s); parent.add(seg);
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.12 * s, 0.55 * s, 6), darkMat);
+    m.rotation.x = -Math.PI / 2 - 0.15; m.position.z = -0.25 * s; seg.add(m);
+    parent = seg;
+  }
+  // hào quang đỏ
+  const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35 }));
+  aura.scale.set(4.2 * s, 4.2 * s, 1); aura.position.y = 1.2 * s; grp.add(aura);
   // thanh máu hologram
   const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(1.7 * s, 0.14 * s), new THREE.MeshBasicMaterial({ color: 0x1a0202, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
-  hpBg.position.y = 2.25 * s; grp.add(hpBg);
+  hpBg.position.y = 2.5 * s; grp.add(hpBg);
   const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(1.7 * s, 0.14 * s), new THREE.MeshBasicMaterial({ color: 0xff3838, side: THREE.DoubleSide }));
-  hpFg.position.set(0, 2.25 * s, 0.01); grp.add(hpFg);
-  grp.userData.hpFg = hpFg; grp.userData.hpW = 1.7 * s; grp.userData.aura = aura;
+  hpFg.position.set(0, 2.5 * s, 0.01); grp.add(hpFg);
+  grp.userData = { hpFg, hpW: 1.7 * s, aura, jawG, legs, tail, body, jawOpen: 0, px: 0, pz: 0 };
   return grp;
 }
-
 // --- Thùng vật phẩm: viền hologram ---
 function makeCrate() {
   const grp = new THREE.Group();
@@ -573,7 +690,7 @@ function upsertPlayer(p) {
   e.mesh.rotation.y = p.ry;
   e.mesh.visible = !p.dead;
 }
-function removePlayer(id) { const e = otherMeshes.get(id); if (e) { scene.remove(e.mesh); otherMeshes.delete(id); } }
+function removePlayer(id) { const e = otherMeshes.get(id); if (e) { removeCharMixer(e.mesh); scene.remove(e.mesh); otherMeshes.delete(id); } }
 function markDead(id) { const e = otherMeshes.get(id); if (e && e.mesh) e.mesh.rotation.x = -Math.PI / 2; }
 function upsertMonster(mo) {
   let e = monsterMeshes.get(mo.id);
@@ -589,6 +706,19 @@ function syncMonsterMeshes(ids) {
   for (const [id, e] of monsterMeshes) if (!ids.includes(id)) { scene.remove(e.mesh); monsterMeshes.delete(id); }
 }
 
+// --- Số damage bay lên ---
+function dmgNumber(x, y, z, dmg, color) {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const g = c.getContext('2d');
+  g.font = 'bold 40px Arial'; g.textAlign = 'center';
+  g.strokeStyle = 'rgba(0,0,0,.85)'; g.lineWidth = 6;
+  g.strokeText(dmg, 64, 44); g.fillStyle = color || '#ffd54f'; g.fillText(dmg, 64, 44);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthWrite: false, transparent: true }));
+  sp.position.set(x + (Math.random() - .5) * 0.6, y, z);
+  sp.scale.set(1.5, 0.75, 1);
+  sp.userData = { life: 0.8, max: 0.8, fx: 'dmgnum' };
+  scene.add(sp); particles.push(sp);
+}
 // --- Tia lửa khi đánh trúng ---
 function burstSparks(x, y, z, color) {
   for (let i = 0; i < 10; i++) {
@@ -858,8 +988,14 @@ function updatePlayer(dt) {
   G.attackCd -= dt;
 
   const u = playerMesh.userData;
-  const bob = animSurvivor(u, moving, t, dt, G.atkAnim > 0);
-  if (u.coreGlow) u.coreGlow.material.opacity = 0.5 + Math.sin(t * 3) * 0.25;
+  let bob = 0;
+  if (u.isGLTF) {
+    // nhân vật 3D thật: dùng animation xương
+    setCharAnim(u, sprint && moving ? 'Run' : moving ? 'Walk' : 'Idle');
+  } else {
+    bob = animSurvivor(u, moving, t, dt, G.atkAnim > 0);
+    if (u.coreGlow) u.coreGlow.material.opacity = 0.5 + Math.sin(t * 3) * 0.25;
+  }
 
   playerMesh.position.set(G.pos.x, bob, G.pos.z);
   playerMesh.rotation.y = G.ry;
@@ -891,14 +1027,17 @@ function doAttack() {
   }
   if (best) {
     burstSparks(best.mo.x, 1.2, best.mo.z, 0xffd54f);
+    dmgNumber(best.mo.x, 2.4, best.mo.z, dmg);
     if (G.online) send({ t: 'hit', monsterId: best.id, dmg });
     else {
       best.mo.hp -= dmg;
       if (best.mo.hp <= 0) {
         offMonsters = offMonsters.filter(m => m.id !== best.id);
         burstSparks(best.mo.x, 1.2, best.mo.z, 0xff4444);
+        if (best.mo.boss) { showEnd('CHIẾN THẮNG!', 'Bạn đã tiêu diệt Hắc Thú Vương. Bạn đã đi đến cuối con đường!'); }
+        else sysMsg('Đã hạ một Hắc Thú!');
         G.drops.push({ id: 'd' + Date.now(), x: best.mo.x, z: best.mo.z, items: { phelieu: 1 } });
-        rebuildDrops(); sysMsg('Đã hạ một Hắc Thú!');
+        rebuildDrops();
       }
     }
   }
@@ -970,6 +1109,24 @@ function updateHUD() {
   const ph = document.getElementById('day-phase');
   ph.textContent = G.night ? '🌙 ĐÊM — HẮC THÚ ĐI SĂN' : '☀️ NGÀY — THU THẬP TÀI NGUYÊN';
   ph.style.color = G.night ? '#ff8a80' : '#7df9ff';
+  // tracker mục tiêu
+  const obj = document.getElementById('obj-text');
+  if (obj) {
+    if (G.day >= 30) obj.textContent = '◈ MỤC TIÊU: TIÊU DIỆT HẮC THÚ VƯƠNG!';
+    else if (G.day >= 28) obj.textContent = '◈ MỤC TIÊU: Chuẩn bị — Hắc Thú Vương sắp giáng lâm!';
+    else if (G.night) obj.textContent = '◈ MỤC TIÊU: Sống sót qua đêm nay!';
+    else obj.textContent = '◈ MỤC TIÊU: Thu thập & chế tạo — Ngày ' + G.day + '/30';
+  }
+  // thanh máu boss
+  const bb = document.getElementById('boss-bar');
+  let boss = null;
+  for (const [, mo] of G.monsters) if (mo.boss) { boss = mo; break; }
+  if (bb) {
+    if (boss) {
+      bb.classList.remove('hidden');
+      document.getElementById('bar-boss').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+    } else bb.classList.add('hidden');
+  }
   const f = document.getElementById('dmg-flash');
   if (f) { const o = parseFloat(f.style.opacity || 0); if (o > 0) f.style.opacity = Math.max(0, o - 0.03); }
 }
@@ -1092,6 +1249,11 @@ function updateFX(dt, t) {
       p.material.opacity = Math.max(0, k);
       const s = 1 + (1 - k) * 1.6; p.scale.set(s, s, 1);
       if (p.userData.life <= 0) { scene.remove(p); particles.splice(i, 1); }
+    } else if (p.userData.fx === 'dmgnum') {
+      p.userData.life -= dt;
+      p.position.y += dt * 1.8;
+      p.material.opacity = Math.max(0, p.userData.life / p.userData.max);
+      if (p.userData.life <= 0) { scene.remove(p); particles.splice(i, 1); }
     } else {
       p.userData.life -= dt;
       p.userData.vy -= 9 * dt;
@@ -1113,30 +1275,63 @@ function loop() {
   updateSky(dt);
   updateFX(dt, t);
   for (const [, e] of monsterMeshes) {
-    e.mesh.position.y = Math.abs(Math.sin(t * 3 + e.mesh.position.x)) * 0.25;
-    e.mesh.rotation.y += dt * 0.6;
-    if (e.mesh.userData.aura) e.mesh.userData.aura.material.opacity = 0.32 + Math.sin(t * 4) * 0.12;
+    const u = e.mesh.userData, m = e.mesh;
+    // vận tốc thực tế để biết đang chạy hay đứng
+    const vx = (m.position.x - (u.px || m.position.x)) / Math.max(dt, 0.001);
+    const vz = (m.position.z - (u.pz || m.position.z)) / Math.max(dt, 0.001);
+    u.px = m.position.x; u.pz = m.position.z;
+    const spd = Math.min(1, Math.hypot(vx, vz) / 3);
+    // quay mặt về hướng di chuyển
+    if (spd > 0.05) m.rotation.y = turnToward(m.rotation.y, Math.atan2(vx, vz), dt * 6);
+    // 4 chân chạy so le
+    const wt = t * (5 + spd * 7);
+    (u.legs || []).forEach((leg, i) => {
+      const ph = (i % 2) * Math.PI + (i < 2 ? 0 : Math.PI * 0.55);
+      leg.rotation.x = Math.sin(wt + ph) * 0.65 * spd;
+    });
+    // hàm há ra khi gần người chơi
+    const pd = Math.hypot(G.pos.x - m.position.x, G.pos.z - m.position.z);
+    const wantOpen = pd < 4 ? 1 : 0;
+    u.jawOpen = (u.jawOpen || 0) + (wantOpen - (u.jawOpen || 0)) * Math.min(1, dt * 8);
+    if (u.jawG) u.jawG.rotation.x = (u.jawOpen || 0) * 0.55;
+    // đuôi vẫy + thân thở
+    if (u.tail) u.tail.rotation.y = Math.sin(t * 2.6 + m.position.x) * 0.45;
+    if (u.body) { const b = 1 + Math.sin(t * 3.2) * 0.02; u.body.scale.set(b, 0.92 * b, 1.35 * b); }
+    if (u.aura) u.aura.material.opacity = 0.28 + Math.sin(t * 4) * 0.12 + spd * 0.1;
   }
   for (const [, m] of crateMeshes) m.userData.glow.material.opacity = 0.35 + Math.sin(t * 4) * 0.2;
   if (clickMarker) clickMarker.material.opacity = 0.55 + Math.sin(t * 6) * 0.3;
   for (const [, m] of dropMeshes) { m.rotation.y += dt * 2; m.userData.core.position.y = 0.6 + Math.sin(t * 3) * 0.15; }
   for (const [, e] of otherMeshes) {
     if (!e.data) continue;
-    e.mesh.position.y = animSurvivor(e.mesh.userData, e.data.anim === 'walk', t, dt, false);
+    const u = e.mesh.userData;
+    if (u.isGLTF) setCharAnim(u, e.data.anim === 'walk' ? 'Walk' : 'Idle');
+    else e.mesh.position.y = animSurvivor(u, e.data.anim === 'walk', t, dt, false);
   }
+  // update animation xương cho tất cả nhân vật model thật
+  for (const ud of charMixers) ud.mixer.update(dt);
   updateHUD();
   renderer.render(scene, camera);
 }
 
 // ---------- 10. KHỞI ĐỘNG ----------
 document.getElementById('btn-start').addEventListener('click', () => {
+  const btn = document.getElementById('btn-start');
+  btn.textContent = 'ĐANG TẢI NHÂN VẬT...'; btn.disabled = true;
   G.name = document.getElementById('player-name').value.trim() || 'Người sống sót';
   let url = document.getElementById('server-url').value.trim();
   if (url && !url.startsWith('ws')) url = 'wss://' + url.replace(/^https?:\/\//, '');
-  document.getElementById('start-screen').classList.add('hidden');
-  document.getElementById('hud').classList.remove('hidden');
-  initThree(); initInput(); renderHotbar();
-  connect(url, () => { loop(); sysMsg('HỆ THỐNG: Chào ' + G.name + '. Sống sót 30 ngày. Ngày 30, Hắc Thú Vương giáng lâm.'); });
+  // tải model người 3D thật trước (rớt mạng thì dùng nhân vật dự phòng)
+  loadSoldier(() => {
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    initThree(); initInput(); renderHotbar();
+    connect(url, () => {
+      loop();
+      sysMsg('HỆ THỐNG: Chào ' + G.name + '. Sống sót 30 ngày. Ngày 30, Hắc Thú Vương giáng lâm.');
+      if (!soldierTpl) sysMsg('Chế độ nhân vật đơn giản (không tải được model 3D).');
+    });
+  });
 });
 document.getElementById('btn-respawn').addEventListener('click', () => {
   if (G.online) send({ t: 'respawn' });
