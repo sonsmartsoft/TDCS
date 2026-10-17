@@ -23,12 +23,31 @@ const RECIPES = [
   { id: 'leu', name: 'Lều Bạt', desc: 'Hồi máu khi đứng gần', need: { go: 4 } },
   { id: 'tuong', name: 'Tường Chắn', desc: 'Chặn quái một lúc', need: { go: 4, gach: 2 } },
 ];
+// ---------- TRANG BỊ (mirror server) ----------
+const EQUIPMENT = {
+  kiem_sat:  { name: 'Kiếm Sắt',       icon: '🗡️', type: 'weapon', rarity: 'hiem',       dmg: 20, desc: '+20 sát thương' },
+  cung_go:   { name: 'Cung Gỗ',        icon: '🏹', type: 'weapon', rarity: 'hiem',       dmg: 18, desc: '+18 sát thương' },
+  kiem_thep: { name: 'Kiếm Thép',       icon: '⚔️', type: 'weapon', rarity: 'suthi',      dmg: 35, desc: '+35 sát thương' },
+  bua_chien: { name: 'Búa Hắc Ám',     icon: '🔨', type: 'weapon', rarity: 'huyenthoai', dmg: 55, desc: '+55 sát thương' },
+  giap_da:   { name: 'Giáp Da Cứng',   icon: '🦺', type: 'armor',  rarity: 'hiem',       maxHp: 30, desc: '+30 máu tối đa' },
+  giap_sat:  { name: 'Giáp Sắt',       icon: '🛡️', type: 'armor',  rarity: 'suthi',      maxHp: 60, dmgRed: 0.10, desc: '+60 máu tối đa, -10% sát thương nhận' },
+  giap_vang: { name: 'Giáp Hoàng Kim', icon: '👑', type: 'armor',  rarity: 'huyenthoai', maxHp: 100, dmgRed: 0.20, desc: '+100 máu tối đa, -20% sát thương nhận' },
+};
+const RARITY_NAME = { hiem: 'HIẾM', suthi: 'SỬ THI', huyenthoai: 'HUYỀN THOẠI' };
+const RARITY_COLOR = { hiem: '#4fc3f7', suthi: '#ce93d8', huyenthoai: '#ffd54f' };
+const ETYPE_NAME = { weapon: 'Vũ khí', armor: 'Giáp' };
+function myDmgBonus() {
+  let b = 0;
+  for (const t in G.equipped) { const g = G.equipped[t]; if (g && EQUIPMENT[g.id].dmg) b += EQUIPMENT[g.id].dmg; }
+  return b;
+}
 
 // ---------- 2. TRẠNG THÁI ----------
 const G = {
   name: 'Người sống sót', myId: null, online: false,
   hp: 100, maxHp: 100, doi: 100, theluc: 100,
   inv: { mi: 2 }, weapon: 'tay', crafted: {},
+  gear: [], equipped: {},
   day: 1, dayTime: 0, night: false,
   players: new Map(), monsters: new Map(), crates: [], drops: [],
   dead: false, chatting: false,
@@ -61,7 +80,8 @@ function handleMsg(m) {
       m.players.forEach(p => upsertPlayer(p));
       m.monsters.forEach(mo => upsertMonster(mo));
       G.crates = m.crates; G.drops = m.drops;
-      rebuildCrates(); rebuildDrops();
+      G.gear = m.gear || []; G.equipped = m.equipped || {};
+      rebuildCrates(); rebuildDrops(); renderGear();
       break;
     case 'join': upsertPlayer(m.p); break;
     case 'left': removePlayer(m.id); break;
@@ -71,6 +91,16 @@ function handleMsg(m) {
     case 'chat': chatMsg(m.from, m.msg); break;
     case 'sys': sysMsg(m.msg); break;
     case 'inv': G.inv = m.inv; renderInv(); renderHotbar(); break;
+    case 'gear':
+      G.gear = m.gear || []; G.equipped = m.equipped || {};
+      if (m.maxHp) { G.maxHp = m.maxHp; if (G.hp > G.maxHp) G.hp = G.maxHp; }
+      renderGear(); renderInv(); renderHotbar();
+      break;
+    case 'lootEquip': {
+      const e = EQUIPMENT[m.id];
+      if (e) showLootPopup(e);
+      break;
+    }
     case 'hp': if (m.hp < G.hp) damageFlash(); G.hp = m.hp; break;
     case 'doi': G.doi = m.doi; break;
     case 'crates': G.crates = m.crates; rebuildCrates(); break;
@@ -91,6 +121,9 @@ function initOffline() {
     id: 'c' + i, x: (Math.random() - .5) * 100, z: (Math.random() - .5) * 100,
     items: { [['mi', 'dohop', 'thuoc', 'phelieu'][Math.floor(Math.random() * 4)]]: 1 + Math.floor(Math.random() * 2) }
   });
+  // 3 rương trang bị lúc đầu
+  if (!G.crates.some(c => c.kind === 'equip')) for (let i = 0; i < 3; i++)
+    G.crates.push({ id: 'ec' + i, kind: 'equip', x: (Math.random() - .5) * 80, z: (Math.random() - .5) * 80 });
   rebuildCrates();
   // 2 con quái yếu ngay từ đầu để luyện đánh
   if (!offMonsters.length) for (let i = 0; i < 2; i++)
@@ -662,9 +695,34 @@ function makeCrate() {
   grp.userData.glow = glow;
   return grp;
 }
+// --- Rương trang bị: vàng rực + cột sáng ---
+function makeEquipCrate() {
+  const grp = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.25, 1.25),
+    new THREE.MeshStandardMaterial({ color: 0x8a6d1f, roughness: 0.35, metalness: 0.85, emissive: 0x332200, emissiveIntensity: 0.5 }));
+  box.position.y = 0.62; box.castShadow = true; grp.add(box);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.16, 1.32),
+    new THREE.MeshBasicMaterial({ color: 0xffe082 }));
+  trim.position.y = 1.28; grp.add(trim);
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22),
+    new THREE.MeshBasicMaterial({ color: 0xfff176 }));
+  gem.position.y = 1.55; grp.add(gem); grp.userData.gem = gem;
+  // cột sáng bắn lên trời
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 22, 12, 1, true),
+    new THREE.MeshBasicMaterial({ map: TEX_GLOW, color: 0xffd54f, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 11.6; grp.add(beam); grp.userData.beam = beam;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xffd54f, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.75 }));
+  glow.scale.set(3.4, 3.4, 1); glow.position.y = 0.9; grp.add(glow);
+  grp.userData.glow = glow;
+  return grp;
+}
 function rebuildCrates() {
   for (const [, m] of crateMeshes) scene.remove(m); crateMeshes.clear();
-  for (const c of G.crates) { const m = makeCrate(); m.userData.crateId = c.id; m.position.set(c.x, 0, c.z); scene.add(m); crateMeshes.set(c.id, m); }
+  for (const c of G.crates) {
+    const m = c.kind === 'equip' ? makeEquipCrate() : makeCrate();
+    m.userData.crateId = c.id; m.userData.isEquip = c.kind === 'equip';
+    m.position.set(c.x, 0, c.z); scene.add(m); crateMeshes.set(c.id, m);
+  }
 }
 function makeDrop() {
   const grp = new THREE.Group();
@@ -868,6 +926,7 @@ function initInput() {
     if (e.key.toLowerCase() === 'b') togglePanel('craft');
     if (e.key.toLowerCase() === 'i') togglePanel('inventory');
     if (e.key.toLowerCase() === 'g') dropSelected();
+    if (e.key.toLowerCase() === 'u') togglePanel('equipment');
   });
   addEventListener('keyup', (e) => { G.keys[e.key.toLowerCase()] = false; });
 
@@ -1017,7 +1076,7 @@ function doAttack() {
   if (G.dead || G.chatting || G.attackCd > 0) return;
   G.attackCd = 0.45;
   G.anim = 'atk';
-  const dmg = WEAPONS[G.weapon].dmg;
+  const dmg = WEAPONS[G.weapon].dmg + myDmgBonus();
   slashFX(G.pos.x + Math.sin(G.ry) * 1.4, G.pos.z + Math.cos(G.ry) * 1.4, G.ry);
   G.atkAnim = 0.3;
   let best = null, bd = CFG.attackRange;
@@ -1060,10 +1119,17 @@ function tryLoot() {
     burstSparks(c.x, 1, c.z, 0xffd54f);
     if (G.online) send({ t: 'loot', crateId: c.id });
     else {
-      for (const k in c.items) G.inv[k] = (G.inv[k] || 0) + c.items[k];
+      if (c.kind === 'equip') {
+        const g = offlineRollEquip();
+        G.gear.push(g);
+        showLootPopup(EQUIPMENT[g.id]);
+        sysMsg('Mở rương trang bị: nhận ' + EQUIPMENT[g.id].name + ' [' + RARITY_NAME[EQUIPMENT[g.id].rarity] + ']');
+      } else {
+        for (const k in c.items) G.inv[k] = (G.inv[k] || 0) + c.items[k];
+        sysMsg('Nhặt được: ' + Object.entries(c.items).map(([k, v]) => ITEM_NAME[k] + ' x' + v).join(', '));
+      }
       G.crates = G.crates.filter(x => x.id !== c.id);
-      rebuildCrates(); renderInv(); renderHotbar();
-      sysMsg('Nhặt được: ' + Object.entries(c.items).map(([k, v]) => ITEM_NAME[k] + ' x' + v).join(', '));
+      rebuildCrates(); renderInv(); renderHotbar(); renderGear();
       setTimeout(() => { if (!G.online) { G.crates.push({ id: 'c' + Date.now(), x: (Math.random() - .5) * 100, z: (Math.random() - .5) * 100, items: { phelieu: 1 } }); rebuildCrates(); } }, 45000);
     }
     return;
@@ -1137,7 +1203,8 @@ function renderHotbar() {
     const d = document.createElement('div');
     d.className = 'slot' + (G.weapon === w ? ' active' : '');
     d.innerHTML = '<span class="ico">' + WEAPONS[w].icon + '</span><span class="key">' + (i + 1) + '</span>';
-    d.title = WEAPONS[w].name + ' (sát thương ' + WEAPONS[w].dmg + ')';
+    const b = myDmgBonus();
+    d.title = WEAPONS[w].name + ' (sát thương ' + (WEAPONS[w].dmg + b) + (b ? ', gồm +' + b + ' từ trang bị' : '') + ')';
     d.onclick = () => { G.weapon = w; renderHotbar(); };
     hb.appendChild(d);
   });
@@ -1154,13 +1221,115 @@ function renderHotbar() {
 function renderInv() {
   const gr = document.getElementById('inv-grid'); gr.innerHTML = '';
   const keys = Object.keys(G.inv);
-  if (!keys.length) gr.innerHTML = '<p style="color:#7df9ff">Túi trống. Đi lục soát các thùng hàng phát sáng (E) đi!</p>';
+  // Trang bị (ưu tiên hiện trước, có viền độ hiếm)
+  G.gear.forEach(g => {
+    const e = EQUIPMENT[g.id]; if (!e) return;
+    const d = document.createElement('div');
+    d.className = 'inv-item r-' + e.rarity;
+    d.innerHTML = '<span class="ico">' + e.icon + '</span>' + e.name +
+      '<br><span class="rarity" style="color:' + RARITY_COLOR[e.rarity] + '">' + RARITY_NAME[e.rarity] + '</span>' +
+      '<br><span class="edesc">' + e.desc + '</span>';
+    d.title = 'Click để mặc (' + ETYPE_NAME[e.type] + ')';
+    d.onclick = () => equipGear(g.uid);
+    gr.appendChild(d);
+  });
+  if (!keys.length && !G.gear.length) gr.innerHTML = '<p style="color:#7df9ff">Túi trống. Đi lục soát các thùng hàng phát sáng (E) đi!</p>';
   keys.forEach(k => {
     const d = document.createElement('div'); d.className = 'inv-item';
     d.innerHTML = '<span class="ico">' + (ITEM_ICON[k] || '📦') + '</span>' + (ITEM_NAME[k] || k) + '<br><span class="qty">x' + G.inv[k] + '</span>';
     d.onclick = (e) => { if (e.shiftKey) { dropSel = k; dropSelected(); } else useItem(k); };
     gr.appendChild(d);
   });
+}
+// ---------- TRANG BỊ ----------
+function offlineRollEquip() {
+  const r = Math.random();
+  const rarity = r < 0.18 ? 'huyenthoai' : r < 0.50 ? 'suthi' : 'hiem';
+  const pool = Object.keys(EQUIPMENT).filter(id => EQUIPMENT[id].rarity === rarity);
+  return { uid: 'g' + Date.now() + Math.floor(Math.random() * 999), id: pool[Math.floor(Math.random() * pool.length)] };
+}
+function equipGear(uid) {
+  if (G.online) { send({ t: 'equip', uid }); return; }
+  const gi = G.gear.findIndex(g => g.uid === uid);
+  if (gi < 0) return;
+  const g = G.gear.splice(gi, 1)[0];
+  const e = EQUIPMENT[g.id];
+  const old = G.equipped[e.type];
+  if (old) G.gear.push(old);
+  G.equipped[e.type] = g;
+  applyGearStats();
+  sysMsg('Đã mặc ' + e.name + ' [' + RARITY_NAME[e.rarity] + ']');
+  renderGear(); renderInv(); renderHotbar();
+}
+function unequipGear(etype) {
+  if (G.online) { send({ t: 'unequip', etype }); return; }
+  const old = G.equipped[etype];
+  if (!old) return;
+  delete G.equipped[etype];
+  G.gear.push(old);
+  applyGearStats();
+  renderGear(); renderInv(); renderHotbar();
+}
+function applyGearStats() {
+  let maxHp = 100;
+  for (const t in G.equipped) {
+    const g = G.equipped[t];
+    if (g && EQUIPMENT[g.id].maxHp) maxHp += EQUIPMENT[g.id].maxHp;
+  }
+  G.maxHp = maxHp;
+  if (G.hp > G.maxHp) G.hp = G.maxHp;
+}
+function renderGear() {
+  const box = document.getElementById('equip-slots');
+  if (!box) return;
+  box.innerHTML = '';
+  ['weapon', 'armor'].forEach(t => {
+    const g = G.equipped[t];
+    const d = document.createElement('div');
+    if (g) {
+      const e = EQUIPMENT[g.id];
+      d.className = 'equip-slot r-' + e.rarity;
+      d.innerHTML = '<span class="ico">' + e.icon + '</span><div class="ename">' + e.name + '</div>' +
+        '<div class="rarity" style="color:' + RARITY_COLOR[e.rarity] + '">' + RARITY_NAME[e.rarity] + '</div>' +
+        '<div class="edesc">' + e.desc + '</div>';
+      d.title = 'Click để tháo';
+      d.onclick = () => unequipGear(t);
+    } else {
+      d.className = 'equip-slot empty';
+      d.innerHTML = '<span class="ico">◌</span><div class="ename">' + ETYPE_NAME[t] + '</div><div class="edesc">chưa có</div>';
+    }
+    box.appendChild(d);
+  });
+  // tổng chỉ số
+  const sum = document.getElementById('equip-stats');
+  if (sum) {
+    const b = myDmgBonus();
+    let red = 0;
+    for (const t in G.equipped) { const g = G.equipped[t]; if (g && EQUIPMENT[g.id].dmgRed) red = Math.max(red, EQUIPMENT[g.id].dmgRed); }
+    sum.textContent = 'Sát thương +' + b + ' · Máu tối đa ' + G.maxHp + (red ? ' · Giảm sát thương ' + Math.round(red * 100) + '%' : '');
+  }
+}
+// ---------- Popup nhận đồ hiếm ----------
+function showLootPopup(e) {
+  let p = document.getElementById('loot-popup');
+  if (!p) {
+    p = document.createElement('div'); p.id = 'loot-popup'; p.className = 'hidden';
+    p.innerHTML = '<div class="lp-tag">◆ HỆ THỐNG — NHẬN TRANG BỊ ◆</div><div class="lp-icon"></div><div class="lp-name"></div><div class="lp-rarity"></div><div class="lp-desc"></div>';
+    document.getElementById('hud').appendChild(p);
+  }
+  p.className = 'r-' + e.rarity;
+  p.querySelector('.lp-icon').textContent = e.icon;
+  p.querySelector('.lp-name').textContent = e.name;
+  const r = p.querySelector('.lp-rarity');
+  r.textContent = '✦ ' + RARITY_NAME[e.rarity] + ' ✦'; r.style.color = RARITY_COLOR[e.rarity];
+  p.querySelector('.lp-desc').textContent = e.desc + ' — vào Túi đồ (I) để mặc';
+  p.classList.remove('hidden', 'lp-anim');
+  void p.offsetWidth;
+  p.classList.add('lp-anim');
+  clearTimeout(p._t);
+  // ẩn khi animation kết thúc (đồng bộ với CSS, không phụ thuộc wall-clock)
+  p.onanimationend = () => p.classList.add('hidden');
+  p._t = setTimeout(() => p.classList.add('hidden'), 7000); // dự phòng
 }
 function useItem(it) {
   if ((G.inv[it] || 0) <= 0) return;
@@ -1198,7 +1367,13 @@ function togglePanel(id) {
   const show = el.classList.contains('hidden');
   document.getElementById('inventory').classList.add('hidden');
   document.getElementById('craft').classList.add('hidden');
-  if (show) { el.classList.remove('hidden'); if (id === 'inventory') renderInv(); if (id === 'craft') renderCraft(); }
+  document.getElementById('equipment').classList.add('hidden');
+  if (show) {
+    el.classList.remove('hidden');
+    if (id === 'inventory') renderInv();
+    if (id === 'craft') renderCraft();
+    if (id === 'equipment') renderGear();
+  }
 }
 
 function onDeath() {
@@ -1299,7 +1474,14 @@ function loop() {
     if (u.body) { const b = 1 + Math.sin(t * 3.2) * 0.02; u.body.scale.set(b, 0.92 * b, 1.35 * b); }
     if (u.aura) u.aura.material.opacity = 0.28 + Math.sin(t * 4) * 0.12 + spd * 0.1;
   }
-  for (const [, m] of crateMeshes) m.userData.glow.material.opacity = 0.35 + Math.sin(t * 4) * 0.2;
+  for (const [, m] of crateMeshes) {
+    m.userData.glow.material.opacity = 0.35 + Math.sin(t * 4) * 0.2;
+    if (m.userData.isEquip) { // rương trang bị: ngọc xoay + cột sáng nhấp nháy
+      if (m.userData.gem) { m.userData.gem.rotation.y += dt * 3; m.userData.gem.position.y = 1.55 + Math.sin(t * 3) * 0.12; }
+      if (m.userData.beam) m.userData.beam.material.opacity = 0.2 + Math.sin(t * 2.4) * 0.12;
+      m.userData.glow.material.opacity = 0.6 + Math.sin(t * 5) * 0.25;
+    }
+  }
   if (clickMarker) clickMarker.material.opacity = 0.55 + Math.sin(t * 6) * 0.3;
   for (const [, m] of dropMeshes) { m.rotation.y += dt * 2; m.userData.core.position.y = 0.6 + Math.sin(t * 3) * 0.15; }
   for (const [, e] of otherMeshes) {

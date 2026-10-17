@@ -31,6 +31,37 @@ const ITEM_NAMES = {
   phelieu: 'Phế liệu', go: 'Ván gỗ', gach: 'Gạch vụn', vai: 'Vải'
 };
 
+// ---------- Trang bị theo độ hiếm ----------
+const EQUIPMENT = {
+  kiem_sat:  { name: 'Kiếm Sắt',        icon: '🗡️', type: 'weapon', rarity: 'hiem',       dmg: 20 },
+  cung_go:   { name: 'Cung Gỗ',         icon: '🏹', type: 'weapon', rarity: 'hiem',       dmg: 18 },
+  kiem_thep: { name: 'Kiếm Thép',        icon: '⚔️', type: 'weapon', rarity: 'suthi',      dmg: 35 },
+  bua_chien: { name: 'Búa Hắc Ám',      icon: '🔨', type: 'weapon', rarity: 'huyenthoai', dmg: 55 },
+  giap_da:   { name: 'Giáp Da Cứng',    icon: '🦺', type: 'armor',  rarity: 'hiem',       maxHp: 30 },
+  giap_sat:  { name: 'Giáp Sắt',        icon: '🛡️', type: 'armor',  rarity: 'suthi',      maxHp: 60, dmgRed: 0.10 },
+  giap_vang: { name: 'Giáp Hoàng Kim',  icon: '👑', type: 'armor',  rarity: 'huyenthoai', maxHp: 100, dmgRed: 0.20 },
+};
+const RARITY_NAME = { hiem: 'HIẾM', suthi: 'SỬ THI', huyenthoai: 'HUYỀN THOẠI' };
+function rollEquipment() {
+  const r = Math.random();
+  const rarity = r < 0.18 ? 'huyenthoai' : r < 0.50 ? 'suthi' : 'hiem';
+  const pool = Object.keys(EQUIPMENT).filter(id => EQUIPMENT[id].rarity === rarity);
+  const id = pool[Math.floor(Math.random() * pool.length)];
+  return { uid: nextId(), id };
+}
+function gearStats(p) {
+  let dmg = 0, maxHp = 100, dmgRed = 0;
+  for (const t in p.equipped) {
+    const g = p.equipped[t];
+    if (!g) continue;
+    const e = EQUIPMENT[g.id];
+    if (e.dmg) dmg += e.dmg;
+    if (e.maxHp) maxHp += e.maxHp;
+    if (e.dmgRed) dmgRed = Math.max(dmgRed, e.dmgRed);
+  }
+  return { dmg, maxHp, dmgRed };
+}
+
 // ---------- Vật phẩm / thùng loot ----------
 function spawnCrate() {
   const lootTable = ['thuoc', 'mi', 'dohop', 'phelieu', 'phelieu', 'go', 'gach', 'mi'];
@@ -43,6 +74,13 @@ function spawnCrate() {
   crates.push({ id: nextId(), x: rand(-WORLD/2, WORLD/2), z: rand(-WORLD/2, WORLD/2), items });
 }
 for (let i = 0; i < 25; i++) spawnCrate();
+
+// ---------- Rương trang bị (mỗi ngày rơi thêm, tối đa 5) ----------
+function spawnEquipCrate() {
+  if (crates.filter(c => c.kind === 'equip').length >= 5) return;
+  crates.push({ id: nextId(), kind: 'equip', x: rand(-WORLD/2, WORLD/2), z: rand(-WORLD/2, WORLD/2) });
+}
+for (let i = 0; i < 3; i++) spawnEquipCrate();
 
 // ---------- Quái ----------
 function spawnMonster(boss = false) {
@@ -95,14 +133,14 @@ wss.on('connection', (ws) => {
         name: String(m.name || 'Người sống sót').slice(0, 16),
         x: rand(-10, 10), z: rand(-10, 10), ry: 0, anim: 'idle',
         hp: 100, maxHp: 100, doi: 100, theluc: 100,
-        inv: { mi: 2 }, dead: false, lastHit: 0
+        inv: { mi: 2 }, gear: [], equipped: {}, dead: false, lastHit: 0
       };
       players.set(pid, p);
       send(ws, {
         t: 'welcome', id: pid, day, dayTime,
         players: [...players.values()].map(pub),
         monsters: [...monsters.values()],
-        crates, drops
+        crates, drops, gear: p.gear, equipped: p.equipped
       });
       broadcast({ t: 'join', p: pub(p) }, pid);
       broadcast({ t: 'sys', msg: p.name + ' đã vào game.' }, pid);
@@ -130,11 +168,55 @@ wss.on('connection', (ws) => {
       const i = crates.findIndex(c => c.id === m.crateId);
       if (i >= 0 && dist(p, crates[i]) < 4) {
         const c = crates.splice(i, 1)[0];
-        for (const k in c.items) p.inv[k] = (p.inv[k] || 0) + c.items[k];
-        send(ws, { t: 'inv', inv: p.inv });
-        send(ws, { t: 'sys', msg: 'Nhặt được: ' + Object.entries(c.items).map(([k, v]) => (ITEM_NAMES[k] || k) + ' x' + v).join(', ') });
+        if (c.kind === 'equip') {
+          // Rương trang bị: rơi 1 món theo độ hiếm
+          const g = rollEquipment();
+          p.gear.push(g);
+          const e = EQUIPMENT[g.id];
+          const st = gearStats(p);
+          p.maxHp = st.maxHp;
+          send(ws, { t: 'gear', gear: p.gear, equipped: p.equipped, maxHp: p.maxHp });
+          send(ws, { t: 'lootEquip', uid: g.uid, id: g.id });
+          send(ws, { t: 'sys', msg: 'Mở rương trang bị: nhận ' + e.name + ' [' + RARITY_NAME[e.rarity] + ']' });
+        } else {
+          for (const k in c.items) p.inv[k] = (p.inv[k] || 0) + c.items[k];
+          send(ws, { t: 'inv', inv: p.inv });
+          send(ws, { t: 'sys', msg: 'Nhặt được: ' + Object.entries(c.items).map(([k, v]) => (ITEM_NAMES[k] || k) + ' x' + v).join(', ') });
+        }
         broadcast({ t: 'crates', crates });
         setTimeout(() => { spawnCrate(); broadcast({ t: 'crates', crates }); }, 45000);
+      }
+      return;
+    }
+    // --- Mặc trang bị ---
+    if (m.t === 'equip') {
+      const gi = p.gear.findIndex(g => g.uid === m.uid);
+      if (gi >= 0) {
+        const g = p.gear.splice(gi, 1)[0];
+        const e = EQUIPMENT[g.id];
+        const old = p.equipped[e.type];
+        if (old) p.gear.push(old); // tháo cái cũ trả về túi
+        p.equipped[e.type] = g;
+        const st = gearStats(p);
+        p.maxHp = st.maxHp;
+        if (p.hp > p.maxHp) p.hp = p.maxHp;
+        send(ws, { t: 'gear', gear: p.gear, equipped: p.equipped, maxHp: p.maxHp });
+        send(ws, { t: 'hp', hp: p.hp });
+        send(ws, { t: 'sys', msg: 'Đã mặc ' + e.name + ' [' + RARITY_NAME[e.rarity] + ']' });
+      }
+      return;
+    }
+    // --- Tháo trang bị ---
+    if (m.t === 'unequip') {
+      const old = p.equipped[m.etype];
+      if (old) {
+        delete p.equipped[m.etype];
+        p.gear.push(old);
+        const st = gearStats(p);
+        p.maxHp = st.maxHp;
+        if (p.hp > p.maxHp) p.hp = p.maxHp;
+        send(ws, { t: 'gear', gear: p.gear, equipped: p.equipped, maxHp: p.maxHp });
+        send(ws, { t: 'hp', hp: p.hp });
       }
       return;
     }
@@ -243,6 +325,10 @@ setInterval(() => {
     dayTime = 0; day++;
     bossSpawned = false;
     broadcast({ t: 'sys', msg: '—— Ngày ' + day + ' ——' });
+    // Mỗi ngày rơi thêm rương trang bị
+    spawnEquipCrate();
+    broadcast({ t: 'crates', crates });
+    broadcast({ t: 'sys', msg: '◆ RƯƠNG TRANG BỊ đã xuất hiện đâu đó trong thành phố!' });
   }
   const night = isNight();
 
@@ -275,7 +361,8 @@ setInterval(() => {
       if (bd > 1.6) { mo.x += dx / d * mo.speed * dt; mo.z += dz / d * mo.speed * dt; }
       else if (mo.atkCd <= 0) {
         mo.atkCd = 1.2;
-        best.hp -= mo.dmg;
+        const red = gearStats(best).dmgRed;
+        best.hp -= mo.dmg * (1 - red);
         send(best.ws, { t: 'hp', hp: Math.max(0, best.hp) });
         if (best.hp <= 0 && !best.dead) {
           best.dead = true;

@@ -30,7 +30,7 @@
   <div id="sysmsg"></div>
   <div id="hotbar"></div>
   <div id="chat-box"><div id="chat-log"></div><input id="chat-input" placeholder="Nhấn Enter để chat..." maxlength="120"></div>
-  <div id="hint">WASD / ←↑↓→ / joystick di chuyển · <b>Click</b> vào đất/quái để tự đi/tấn công · Kéo chuột xoay · Space đánh · <b>E</b> nhặt · <b>B</b> chế tạo · <b>Enter</b> chat</div>
+  <div id="hint">WASD / ←↑↓→ / joystick di chuyển · <b>Click</b> vào đất/quái để tự đi/tấn công · Kéo chuột xoay · Space đánh · <b>E</b> nhặt · <b>B</b> chế tạo · <b>I</b> túi đồ · <b>U</b> trang bị · <b>Enter</b> chat</div>
   <div id="joystick"><div id="joy-knob"></div></div>
   <div id="btn-loot" class="ctl-btn" title="Nhặt đồ (E)">🤲</div>
   <div id="btn-atk" class="ctl-btn" title="Đánh (Space)">⚔️</div>
@@ -49,12 +49,20 @@
   <div id="craft-list"></div>
 </div>
 
+<!-- Trang bị -->
+<div id="equipment" class="panel hidden">
+  <h3>◆ Trang bị <span class="close" data-close="equipment">✕</span></h3>
+  <div id="equip-slots"></div>
+  <p id="equip-stats" class="tip"></p>
+  <p class="tip">Click trang bị đang mặc để tháo · Mở rương vàng để kiếm đồ xịn</p>
+</div>
+
 <!-- Màn hình chào -->
 <div id="start-screen">
   <div class="start-card">
     <h1>TOÀN DÂN CẦU SINH</h1>
     <div class="sys-tag">◆ HỆ THỐNG SINH TỒN ◆</div>
-    <p class="subtitle">Trùng sinh về Ngày 1 — Sống sót 30 ngày giữa thành phố chết.<br>Ngày 30, Hắc Thú Vương giáng lâm.</p>
+    <p class="subtitle">Trùng sinh về Ngày 1 — Sống sót 30 ngày giữa thành phố chết.<br>Ngày 30, Hắc Thú Vương giáng lâm.<br><span class="gold">◆ Rương vàng phát sáng chứa trang bị Hiếm → Huyền Thoại!</span></p>
     <input id="player-name" placeholder="Tên của bạn..." maxlength="16">
     <input id="server-url" placeholder="Địa chỉ server (để trống = chơi đơn)">
     <button id="btn-start">VÀO GAME</button>

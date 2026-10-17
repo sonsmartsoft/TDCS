@@ -145,3 +145,57 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #020208; f
 .bar.boss { height: 14px; border: 1px solid rgba(255,82,82,.6); background: rgba(60,5,10,.6); }
 .bar.boss .fill { background: linear-gradient(90deg, #b71c1c, #ff5252); box-shadow: 0 0 14px rgba(255,82,82,.9); }
 .bar.boss .fill::after { background: repeating-linear-gradient(90deg, transparent 0 10px, rgba(0,0,0,.4) 10px 13px); }
+
+/* ================= REV11: HOLOGRAM NÂNG CẤP ================= */
+/* vệt sáng quét ngang panel hologram */
+.holo { position: relative; overflow: hidden; }
+.holo::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,229,255,.09) 48%, rgba(0,229,255,.16) 50%, rgba(0,229,255,.09) 52%, transparent 100%);
+  background-size: 100% 280%; animation: holoScan 5.5s linear infinite; }
+@keyframes holoScan { 0% { background-position: 0 140%; } 100% { background-position: 0 -140%; } }
+/* viền phát sáng nhấp nháy nhẹ */
+.holo::before { animation: holoGlow 3s ease-in-out infinite; }
+@keyframes holoGlow { 50% { filter: brightness(1.35); } }
+
+/* ---------- Độ hiếm ---------- */
+.r-hiem { border-color: rgba(79,195,247,.75) !important; box-shadow: 0 0 16px rgba(79,195,247,.35) !important; }
+.r-suthi { border-color: rgba(206,147,216,.8) !important; box-shadow: 0 0 18px rgba(206,147,216,.45) !important; }
+.r-huyenthoai { border-color: rgba(255,213,79,.9) !important; box-shadow: 0 0 22px rgba(255,213,79,.55) !important;
+  animation: legPulse 1.6s ease-in-out infinite; }
+@keyframes legPulse { 50% { box-shadow: 0 0 34px rgba(255,213,79,.85); } }
+.inv-item .rarity { font-size: 10px; letter-spacing: 2px; font-weight: bold; }
+.inv-item .edesc { font-size: 10px; color: #8aa5b5; line-height: 1.5; }
+
+/* ---------- Popup nhận trang bị ---------- */
+#loot-popup { position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%);
+  min-width: 340px; text-align: center; padding: 26px 34px; z-index: 40; pointer-events: none;
+  background: linear-gradient(135deg, rgba(4,20,32,.95), rgba(8,10,26,.92));
+  clip-path: polygon(24px 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%, 0 24px); }
+#loot-popup.lp-anim { animation: lpIn 3.6s ease forwards; }
+@keyframes lpIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.6); }
+  12% { opacity: 1; transform: translate(-50%,-50%) scale(1.08); }
+  20% { transform: translate(-50%,-50%) scale(1); }
+  85% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-58%) scale(1); } }
+.lp-tag { font-size: 10px; letter-spacing: 4px; color: #00e5ff; margin-bottom: 10px; }
+.lp-icon { font-size: 54px; filter: drop-shadow(0 0 18px rgba(255,255,255,.5)); margin-bottom: 6px; }
+.lp-name { font-size: 20px; font-weight: 800; letter-spacing: 2px; color: #fff; }
+.lp-rarity { font-size: 13px; letter-spacing: 4px; font-weight: bold; margin: 6px 0; }
+.lp-desc { font-size: 12px; color: #8aa5b5; }
+
+/* ---------- Panel trang bị ---------- */
+#equip-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.equip-slot { border: 1px solid rgba(0,229,255,.35); background: rgba(0,229,255,.05);
+  padding: 16px 10px; text-align: center; cursor: pointer; transition: .15s; }
+.equip-slot:hover { border-color: #00e5ff; box-shadow: 0 0 14px rgba(0,229,255,.4); }
+.equip-slot.empty { opacity: .45; cursor: default; }
+.equip-slot .ico { font-size: 34px; display: block; margin-bottom: 8px; }
+.equip-slot .ename { font-size: 13px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+.equip-slot .rarity { font-size: 10px; letter-spacing: 3px; font-weight: bold; margin: 4px 0; }
+.equip-slot .edesc { font-size: 11px; color: #8aa5b5; line-height: 1.5; }
+
+/* ---------- Start screen nâng cấp ---------- */
+.start-card .gold { color: #ffd54f; text-shadow: 0 0 12px rgba(255,213,79,.6); font-weight: bold; }
+.start-card h1 { animation: flicker 4s infinite, titleGlow 6s ease-in-out infinite; }
+@keyframes titleGlow { 50% { text-shadow: 0 0 34px rgba(255,82,82,.95), 0 0 90px rgba(255,82,82,.5); } }
+.sys-line.legend { border-color: rgba(255,213,79,.7); color: #ffe082;
+  box-shadow: 0 0 22px rgba(255,213,79,.35); font-weight: bold; }

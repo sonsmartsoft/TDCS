@@ -69,9 +69,18 @@ Mở port TCP (ví dụ 3001) trong Security List của Oracle, client trỏ t�
 | Shift | Chạy nhanh |
 | E | Nhặt thùng hàng / đồ rơi |
 | B | Chế tạo |
-| I | Túi đồ (click = dùng, Shift+click = đánh rơi) |
+| I | Túi đồ (click = dùng/mặc, Shift+click = đánh rơi) |
+| U | Panel trang bị |
 | G | Đánh rơi vật phẩm đang chọn (để giao dịch) |
 | Enter | Chat |
+
+## Rương trang bị (mới rev11)
+
+- **Rương vàng phát sáng** (có cột sáng bắn lên trời) xuất hiện trong thành phố — mỗi ngày rơi thêm 1 rương
+- Mở rương nhận **trang bị theo độ hiếm**: Hiếm (xanh) → Sử thi (tím) → Huyền thoại (vàng)
+- Vũ khí: Kiếm Sắt, Cung Gỗ, Kiếm Thép (+35 dmg), Búa Hắc Ám (+55 dmg)
+- Giáp: Giáp Da (+30 máu), Giáp Sắt (+60 máu, -10% sát thương), Giáp Hoàng Kim (+100 máu, -20% sát thương)
+- Vào Túi đồ (I) click trang bị để **mặc**, phím U xem panel trang bị
 
 ## Mẹo sinh tồn
 
