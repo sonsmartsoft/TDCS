@@ -23,7 +23,14 @@ Chạy server riêng: `cd server && npm install && npm start` (port 3001).
 
 ## Quy ước code
 
-- Client (`client/`): 1 file `game.js` chính. Giữ tương thích Three.js r128 (không dùng module import).
+- Client (`client/`): hiện tại 1 file `game.js` chính (1339 dòng, rev10),
+  chạy ổn định với Three.js r128 (không dùng module import).
+  - NGOẠI LỆ: gói NV-GFX trong `PLAN-NANG-CAP.md` được phép nâng client lên
+    Three.js r165+ và tách thành module dùng bundler Vite — đây là yêu cầu
+    cốt lõi đã được anh Sơn phê duyệt. Khi NV-GFX hoàn thành, cập nhật lại
+    dòng này theo trạng thái mới.
+- Branch làm việc của opencode cho các gói NV-*: `master` (code nâng cấp
+  commit thẳng lên `master`; khi ổn định mới merge sang `main` để tag rev).
 - Server (`server/`): 1 file `server.js`. Giao thức WebSocket đã định nghĩa trong `THIET-KE-GAME.md` — đổi protocol thì cập nhật cả 2 phía.
 - Không commit: `node_modules/`, `video/*.mp4`, file log, `.env`.
 - Model 3D thật nằm ở `client/models/` (hiện có `Soldier.glb` cho nhân vật).

@@ -10,9 +10,12 @@ Các khung hình trích xuất: video/extracted-frames/ (13 ảnh đại diện)
 --------------------------------------------------------------------------------
 1. MỤC TIÊU
 --------------------------------------------------------------------------------
-Thay đổi client từ game đơn giản (Three.js r128, low-poly, programmer art) lên mức
+Thay đổi client từ bản **rev10** (Three.js r128, đã có nhân vật 3D thật Soldier.glb,
+quái 4 chân có gait thật, map chi tiết có bóng thành phố xa) lên mức
 **photorealistic / cinematic** cực kỳ giống thật, lấy cảm hứng từ video "Toàn Dân
 Mạc Lộ Cầu Sinh".
+
+Lưu ý: NÂNG CẤP từ những gì rev10 đã có — không làm lại từ đầu.
 
 Độ ưu tiên: CAO NHẤT — đây là yêu cầu cốt lõi.
 
@@ -38,7 +41,7 @@ Mạc Lộ Cầu Sinh".
     - Cập nhật `client/Dockerfile` (multi-stage build: vite build rồi copy dist vào nginx).
     - Cập nhật `client/index.html` để tải bundle JS từ Vite (thay script thô game.js).
 
-3.2 Tách `client/game.js` (~1144 dòng) thành module:
+3.2 Tách `client/game.js` (1339 dòng, bản rev10) thành module:
     - `client/src/core.js`: scene, camera, renderer, ánh sáng, bầu trời, mặt đất.
     - `client/src/world.js`: hình hài người, quái, thùng, đồ rơi, hiệu ứng.
     - `client/src/input.js`: bàn phím, chuột, joystick cảm ứng, click-to-move.
@@ -69,14 +72,19 @@ Mạc Lộ Cầu Sinh".
     - Vignette, bokeh, màu grading u ám (đen-xám-xanh đêm), contrast cao.
     - `EffectComposer` + `RenderPass` + `ShaderPass`.
 
-3.8 Mô hình nhân vật real:
-    - Thay mô hình khớp xương đơn giản bằng nhân vật da thịt, tóc, áo tay chi tiết.
-    - Có thể dùng mô hình đã có hoặc tạo mới (box procedural với texture PBR nếu chưa có model ngoài).
-    - Mắt, da, vết thương, mồ hôi chi tiết.
+3.8 Mô hình nhân vật real — NÂNG CẤP, không làm lại:
+    - rev10 ĐÃ CÓ nhân vật 3D thật: `client/models/Soldier.glb` (mô hình khớp xương
+      đầy đủ, không phải mô hình đơn giản).
+    - Nhiệm vụ là tăng chi tiết lên mức photorealistic: da, tóc, áo tay, vết thương,
+      mồ hôi; chỉnh PBR materials cho model hiện có.
+    - Chỉ thay model mới nếu model mới chi tiết hơn rõ rệt và giữ nguyên được
+      animation khớp xương đã có.
 
-3.9 Mô hình quái real:
-    - Thú đột biến khổng lồ, thân giáp rắn/vảy, gai nhọn, mắt phát sáng đỏ, aura đỏ xung quanh.
-    - Kích thước lớn hơn nhân vật, di chuyển hung dữ.
+3.9 Mô hình quái real — NÂNG CẤP trên khung đã có, không dựng từ đầu:
+    - rev10 ĐÃ CÓ quái 4 chân có khớp chân và gait thật (chuyển động đi tự nhiên).
+    - Nhiệm vụ: biến thành thú đột biến khổng lồ — thân giáp rắn/vảy, gai nhọn,
+      mắt phát sáng đỏ, aura đỏ xung quanh; kích thước lớn hơn nhân vật,
+      di chuyển hung dữ. Giữ nguyên hệ thống gait/khớp đã có, tăng chi tiết bề mặt.
 
 3.10 Giao diện Hologram "Hệ Thống":
     - Màn hình holo trong suốt, viền kim loại, ánh sáng xanh neon.
@@ -116,11 +124,12 @@ Mạc Lộ Cầu Sinh".
 - Sửa: `client/index.html`, `.gitignore` (bo node_modules, dist).
 
 --------------------------------------------------------------------------------
-6. LIÊN HỆ / PHẢNH HỒI
+6. LIÊN HỆ / BÁO CÁO (workflow GitHub — đã thay drop server)
 --------------------------------------------------------------------------------
-Muse báo cáo kết quả vào Drop Server `outbox` dưới tên `nv-gfx-bao-cao.md`
-(đắt buộc) và kèm `nv-gfx.patch` (nếu có thay đổi mã). Sau khi anh xem xét, anh sẽ
-phản hồi bằng file `phan-hoi-nv-gfx.txt` vào `inbox`.
+Muse báo cáo kết quả bằng commit lên nhánh `master` của repo TDCS với thông điệp
+rõ ràng (tiếng Việt, bắt đầu bằng động từ: Thêm/Sửa/Nâng cấp...). Kèm theo:
+- file `nv-gfx-bao-cao.md` trong repo: ghi tiến độ đã làm, checklist §4, vấn đề còn lại.
+- Anh Sơn xem qua commit và file báo cáo rồi phản hồi (chat hoặc issue).
 
 --------------------------------------------------------------------------------
 LIÊN KẾT THAM KHẢO

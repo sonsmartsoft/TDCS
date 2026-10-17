@@ -147,9 +147,9 @@
 
 1. **Mã nguồn đã lên repo:** https://github.com/sonsmartsoft/TDCS.git (nhánh `master`). Muse có thể clone/đọc toàn bộ source.
 2. **File plan này** (`PLAN-NANG-CAP.md`) nằm trong repo để Muse tham khảo.
-3. **Giao việc chi tiết:** Tôi tạo các file `viec-nvXX.txt` và upload vào **Drop Server** của Muse tại `https://muse.vhtatn.io.vn` (hộp `inbox`, header `X-Token`). Chuẩn theo `huong-dan-nhan-nv-va-phan-hoi_1.md`.
-4. **Kết quả:** Muse báo cáo vào `outbox` (`nvXX-bao-cao.md`, `nvXX.patch`). Tôi xem xét và phản hồi bằng `phan-hoi-nvXX.txt`.
+3. **Giao việc chi tiết:** các file `viec-nvXX.txt` nằm sẵn trong repo (nhánh `master`), Muse đọc trực tiếp từ repo — không qua Drop Server nữa.
+4. **Kết quả:** Muse commit code lên nhánh `master` của repo với thông điệp rõ ràng (tiếng Việt, bắt đầu bằng động từ), đồng thời cập nhật file `nvXX-bao-cao.md` trong repo (tiến độ, checklist, vấn đề còn lại). Anh Sơn xem commit và báo cáo rồi phản hồi qua chat hoặc issue.
 
 ---
 
-> **Yêu cầu:** Anh vui lòng cung cấp **X-Token** của Drop Server (`https://muse.vhtatn.io.vn`). Tôi sẽ upload `viec-nv-gfx.txt` (gói ưu tiên cao nhất — đồ họa cực kỳ giống thật) vào `inbox` cho Muse bắt đầu làm đầu tiên.
+> **Workflow hiện tại:** GitHub trực tiếp — opencode clone repo, đọc file giao việc `viec-nv-gfx.txt` (gói ưu tiên cao nhất) trên nhánh `master`, commit kết quả lên nhánh này. Không cần X-Token Drop Server.
