@@ -602,85 +602,152 @@ function removeCharMixer(root) {
     if (i >= 0) charMixers.splice(i, 1);
   }
 }
+let headLamp = null, rimLight = null;
 function buildPlayer() {
   playerMesh = makeHumanoid(0x181824, null);
   scene.add(playerMesh);
+  // đèn pha gắn trên vai nhân vật — soi rõ nhân vật + vùng trước mặt
+  headLamp = new THREE.SpotLight(0xfff2d8, 1.5, 22, 0.65, 0.45, 1.2);
+  headLamp.position.set(0, 3.2, 0);
+  scene.add(headLamp);
+  scene.add(headLamp.target);
+  // đèn viền sau lưng — tách nhân vật khỏi nền tối
+  rimLight = new THREE.PointLight(0x66ccff, 0.9, 9, 2);
+  scene.add(rimLight);
 }
 
-// --- Hắc Thú v2: thú 4 chân, hàm há được, đuôi vẫy, mắt đỏ ---
+// --- Hắc Thú v3: SÓI ĐỘT BIẾN realistic — lông, tai, mõm, chân sói ---
+let TEX_FUR = null;
+function furTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#17171f'; x.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5200; i++) { // sợi lông
+    const px = Math.random() * 256, py = Math.random() * 256, l = 3 + Math.random() * 7;
+    const v = 12 + Math.random() * 38;
+    x.strokeStyle = 'rgba(' + v + ',' + v + ',' + (v + 8) + ',' + (0.5 + Math.random() * 0.5) + ')';
+    x.lineWidth = 1;
+    x.beginPath(); x.moveTo(px, py);
+    x.lineTo(px + (Math.random() - .5) * 3, py + l); x.stroke();
+  }
+  for (let i = 0; i < 26; i++) { // mảng lông sáng/tối
+    const bx = Math.random() * 256, by = Math.random() * 256, br = 12 + Math.random() * 30;
+    const g2 = x.createRadialGradient(bx, by, 2, bx, by, br);
+    const light = Math.random() < 0.5;
+    g2.addColorStop(0, light ? 'rgba(70,70,86,0.25)' : 'rgba(4,4,8,0.35)');
+    g2.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g2; x.beginPath(); x.arc(bx, by, br, 0, 7); x.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
 function makeMonster(boss) {
   const grp = new THREE.Group();
   const s = boss ? 2.4 : 1;
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0d0d14, roughness: 0.55 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1e1e2a, roughness: 0.5 });
-  const mouthMat = new THREE.MeshStandardMaterial({ color: 0x3a0d12, roughness: 0.7 });
+  if (!TEX_FUR) TEX_FUR = furTexture();
+  const bodyMat = new THREE.MeshStandardMaterial({ map: TEX_FUR, color: 0x9a9aa8, roughness: 0.9 });
+  const darkMat = new THREE.MeshStandardMaterial({ map: TEX_FUR, color: 0x6a6a78, roughness: 0.9 });
+  const mouthMat = new THREE.MeshStandardMaterial({ color: 0x4a0d12, roughness: 0.65 });
+  const noseMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.35 });
 
-  // thân dài, khom về trước
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.95 * s, 14, 12), bodyMat);
-  body.position.set(0, 1.05 * s, -0.1 * s); body.scale.set(1, 0.92, 1.35);
-  body.castShadow = true; grp.add(body);
-  // đầu + hàm dưới há được
-  const headG = new THREE.Group(); headG.position.set(0, 1.35 * s, 1.05 * s); grp.add(headG);
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.5 * s, 12, 10), bodyMat);
-  skull.scale.set(1, 0.85, 1.1); skull.castShadow = true; headG.add(skull);
-  const jawG = new THREE.Group(); jawG.position.set(0, -0.18 * s, 0.15 * s); headG.add(jawG);
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.55 * s, 0.16 * s, 0.6 * s), mouthMat);
-  jaw.position.set(0, -0.08 * s, 0.25 * s); jawG.add(jaw);
-  // răng nanh
-  const fangM = new THREE.MeshStandardMaterial({ color: 0xcfc4ae, roughness: 0.4 });
+  // thân: ngực nở + bụng + mông cơ bắp (3 khối chồng)
+  const chest = new THREE.Mesh(new THREE.SphereGeometry(0.72 * s, 14, 12), bodyMat);
+  chest.position.set(0, 1.15 * s, 0.55 * s); chest.scale.set(1, 1.05, 1.1); chest.castShadow = true; grp.add(chest);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.62 * s, 12, 10), bodyMat);
+  belly.position.set(0, 1.02 * s, -0.25 * s); belly.scale.set(0.92, 0.9, 1.25); belly.castShadow = true; grp.add(belly);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.66 * s, 12, 10), bodyMat);
+  body.position.set(0, 1.12 * s, -0.95 * s); body.scale.set(1.05, 1, 1); body.castShadow = true; grp.add(body);
+  // cổ vươn lên
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.34 * s, 0.5 * s, 0.8 * s, 10), bodyMat);
+  neck.position.set(0, 1.55 * s, 1.05 * s); neck.rotation.x = 0.7; neck.castShadow = true; grp.add(neck);
+
+  // đầu sói: sọ + mõm thuôn + mũi + tai nhọn
+  const headG = new THREE.Group(); headG.position.set(0, 1.95 * s, 1.35 * s); grp.add(headG);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.42 * s, 12, 10), bodyMat);
+  skull.scale.set(0.95, 0.9, 1); skull.castShadow = true; headG.add(skull);
+  const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * s, 0.3 * s, 0.55 * s, 8), darkMat);
+  snout.rotation.x = Math.PI / 2 - 0.12; snout.position.set(0, -0.1 * s, 0.5 * s); snout.castShadow = true; headG.add(snout);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.1 * s, 8, 6), noseMat);
+  nose.position.set(0, -0.06 * s, 0.78 * s); headG.add(nose);
+  // tai nhọn vểnh
   [-1, 1].forEach(sd => {
-    const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.05 * s, 0.22 * s, 6), fangM);
-    f1.position.set(0.2 * sd * s, -0.3 * s, 0.45 * s); f1.rotation.x = Math.PI; headG.add(f1);
-    const f2 = new THREE.Mesh(new THREE.ConeGeometry(0.04 * s, 0.16 * s, 6), fangM);
-    f2.position.set(0.18 * sd * s, 0.02 * s, 0.5 * s); jawG.add(f2);
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.13 * s, 0.34 * s, 6), darkMat);
+    ear.position.set(0.24 * sd * s, 0.42 * s, -0.05 * s);
+    ear.rotation.z = -0.25 * sd; ear.rotation.x = -0.15; ear.castShadow = true; headG.add(ear);
+    const inEar = new THREE.Mesh(new THREE.ConeGeometry(0.07 * s, 0.18 * s, 6), mouthMat);
+    inEar.position.set(0.24 * sd * s, 0.4 * s, 0.02 * s); inEar.rotation.z = -0.25 * sd; headG.add(inEar);
   });
-  // mắt đỏ phát sáng
+  // hàm dưới há được + răng nanh lớn
+  const jawG = new THREE.Group(); jawG.position.set(0, -0.28 * s, 0.1 * s); headG.add(jawG);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.4 * s, 0.13 * s, 0.62 * s), mouthMat);
+  jaw.position.set(0, -0.05 * s, 0.32 * s); jawG.add(jaw);
+  const fangM = new THREE.MeshStandardMaterial({ color: 0xd8ccb2, roughness: 0.35 });
+  [-1, 1].forEach(sd => {
+    const f1 = new THREE.Mesh(new THREE.ConeGeometry(0.055 * s, 0.3 * s, 6), fangM); // nanh trên
+    f1.position.set(0.16 * sd * s, -0.3 * s, 0.52 * s); f1.rotation.x = Math.PI; headG.add(f1);
+    const f2 = new THREE.Mesh(new THREE.ConeGeometry(0.045 * s, 0.2 * s, 6), fangM); // nanh dưới
+    f2.position.set(0.14 * sd * s, 0.04 * s, 0.55 * s); jawG.add(f2);
+    for (let ti = 0; ti < 3; ti++) { // răng nhỏ
+      const t = new THREE.Mesh(new THREE.ConeGeometry(0.03 * s, 0.1 * s, 5), fangM);
+      t.position.set((0.05 + ti * 0.07) * sd * s, -0.22 * s, 0.5 * s); t.rotation.x = Math.PI; headG.add(t);
+    }
+  });
+  // mắt đỏ phát sáng + quầng
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
   [-1, 1].forEach(sd => {
-    const e = new THREE.Mesh(new THREE.SphereGeometry(0.11 * s, 10, 8), eyeMat);
-    e.position.set(0.24 * sd * s, 0.12 * s, 0.38 * s); headG.add(e);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.09 * s, 10, 8), eyeMat);
+    e.position.set(0.2 * sd * s, 0.1 * s, 0.32 * s); headG.add(e);
   });
-  const eyeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.75 }));
-  eyeGlow.scale.set(1.1 * s, 0.7 * s, 1); eyeGlow.position.set(0, 0.12 * s, 0.5 * s); headG.add(eyeGlow);
-  // gai dọc sống lưng
+  const eyeGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 }));
+  eyeGlow.scale.set(1.2 * s, 0.75 * s, 1); eyeGlow.position.set(0, 0.1 * s, 0.42 * s); headG.add(eyeGlow);
+  // gai đột biến dọc sống lưng
   const nSp = boss ? 10 : 7;
   for (let i = 0; i < nSp; i++) {
-    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.14 * s, (0.55 + Math.random() * 0.45) * s, 6), darkMat);
-    const zz = (0.9 - (i / (nSp - 1))) * 1.5 * s;
-    sp.position.set(0, (1.75 - Math.abs(zz) * 0.25) * s, zz);
-    sp.rotation.x = -0.25 - (i / nSp) * 0.5;
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.13 * s, (0.5 + Math.random() * 0.5) * s, 6), darkMat);
+    const zz = (0.9 - (i / (nSp - 1))) * 1.6 * s;
+    sp.position.set(0, (1.85 - Math.abs(zz + 0.2) * 0.3) * s, zz);
+    sp.rotation.x = -0.3 - (i / nSp) * 0.5;
     sp.castShadow = true; grp.add(sp);
   }
-  // 4 chân có khớp
+  // 4 chân kiểu sói: đùi + cẳng + bàn chân + móng
   const legs = [];
-  [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([sx, sz]) => {
-    const hip = new THREE.Group(); hip.position.set(0.55 * sx * s, 0.85 * s, 0.55 * sz * s); grp.add(hip);
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.14 * s, 0.1 * s, 0.6 * s, 8), bodyMat);
-    upper.position.y = -0.3 * s; upper.castShadow = true; hip.add(upper);
+  [[-1, 1, 0], [1, 1, 0], [-1, -1, 1], [1, -1, 1]].forEach(([sx, sz, rear]) => {
+    const hip = new THREE.Group();
+    hip.position.set(0.5 * sx * s, (rear ? 1.05 : 1.15) * s, (rear ? -0.95 : 0.55) * s);
+    grp.add(hip);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * s, 0.11 * s, 0.62 * s, 8), bodyMat);
+    upper.position.y = -0.28 * s; upper.rotation.x = rear ? 0.35 : -0.25; upper.castShadow = true; hip.add(upper);
+    const lowG = new THREE.Group(); lowG.position.set(0, -0.55 * s, rear ? 0.18 * s : -0.14 * s); hip.add(lowG);
     const low = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * s, 0.07 * s, 0.55 * s, 8), darkMat);
-    low.position.y = -0.75 * s; hip.add(low);
-    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.11 * s, 0.28 * s, 6), darkMat);
-    claw.position.y = -1.05 * s; claw.rotation.x = Math.PI; hip.add(claw);
+    low.position.y = -0.24 * s; low.rotation.x = rear ? -0.3 : 0.25; low.castShadow = true; lowG.add(low);
+    const paw = new THREE.Mesh(new THREE.SphereGeometry(0.13 * s, 8, 6), darkMat);
+    paw.position.set(0, -0.52 * s, rear ? -0.06 * s : 0.06 * s); paw.scale.set(1, 0.7, 1.3); lowG.add(paw);
+    for (let ci = -1; ci <= 1; ci++) { // móng vuốt
+      const cl = new THREE.Mesh(new THREE.ConeGeometry(0.035 * s, 0.14 * s, 5), noseMat);
+      cl.position.set(ci * 0.08 * s, -0.56 * s, (rear ? -0.2 : 0.2) * s);
+      cl.rotation.x = rear ? -Math.PI / 2 - 0.4 : Math.PI / 2 + 0.4; lowG.add(cl);
+    }
     legs.push(hip);
   });
-  // đuôi gai vẫy
-  const tail = new THREE.Group(); tail.position.set(0, 1.15 * s, -1.35 * s); grp.add(tail);
+  // đuôi sói rậm vẫy
+  const tail = new THREE.Group(); tail.position.set(0, 1.25 * s, -1.5 * s); grp.add(tail);
   let parent = tail;
   for (let i = 0; i < 3; i++) {
-    const seg = new THREE.Group(); if (i) seg.position.set(0, 0.05 * s, -0.5 * s); parent.add(seg);
-    const m = new THREE.Mesh(new THREE.ConeGeometry(0.12 * s, 0.55 * s, 6), darkMat);
-    m.rotation.x = -Math.PI / 2 - 0.15; m.position.z = -0.25 * s; seg.add(m);
+    const seg = new THREE.Group(); if (i) seg.position.set(0, -0.08 * s, -0.42 * s); parent.add(seg);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * s - i * 0.03 * s, 0.1 * s - i * 0.025 * s, 0.5 * s, 8), bodyMat);
+    m.rotation.x = Math.PI / 2 + 0.35; m.position.z = -0.2 * s; m.castShadow = true; seg.add(m);
     parent = seg;
   }
   // hào quang đỏ
   const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35 }));
-  aura.scale.set(4.2 * s, 4.2 * s, 1); aura.position.y = 1.2 * s; grp.add(aura);
+  aura.scale.set(4.6 * s, 4.6 * s, 1); aura.position.y = 1.3 * s; grp.add(aura);
   // thanh máu hologram
   const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(1.7 * s, 0.14 * s), new THREE.MeshBasicMaterial({ color: 0x1a0202, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
-  hpBg.position.y = 2.5 * s; grp.add(hpBg);
+  hpBg.position.y = 2.9 * s; grp.add(hpBg);
   const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(1.7 * s, 0.14 * s), new THREE.MeshBasicMaterial({ color: 0xff3838, side: THREE.DoubleSide }));
-  hpFg.position.set(0, 2.5 * s, 0.01); grp.add(hpFg);
-  grp.userData = { hpFg, hpW: 1.7 * s, aura, jawG, legs, tail, body, jawOpen: 0, px: 0, pz: 0 };
+  hpFg.position.set(0, 2.9 * s, 0.01); grp.add(hpFg);
+  grp.userData = { hpFg, hpW: 1.7 * s, aura, jawG, legs, tail, body: chest, jawOpen: 0, px: 0, pz: 0 };
   return grp;
 }
 // --- Thùng vật phẩm: viền hologram ---
@@ -1058,6 +1125,12 @@ function updatePlayer(dt) {
 
   playerMesh.position.set(G.pos.x, bob, G.pos.z);
   playerMesh.rotation.y = G.ry;
+  // đèn pha + viền bám theo nhân vật
+  if (headLamp) {
+    headLamp.position.set(G.pos.x, 3.4 + bob, G.pos.z);
+    headLamp.target.position.set(G.pos.x + Math.sin(G.ry) * 8, 0.5, G.pos.z + Math.cos(G.ry) * 8);
+  }
+  if (rimLight) rimLight.position.set(G.pos.x - Math.sin(G.ry) * 2.2, 2.2, G.pos.z - Math.cos(G.ry) * 2.2);
 
   // camera thứ 3 + rung khi bị đánh
   G.shake = Math.max(0, G.shake - dt * 1.6);
@@ -1469,9 +1542,13 @@ function loop() {
     const wantOpen = pd < 4 ? 1 : 0;
     u.jawOpen = (u.jawOpen || 0) + (wantOpen - (u.jawOpen || 0)) * Math.min(1, dt * 8);
     if (u.jawG) u.jawG.rotation.x = (u.jawOpen || 0) * 0.55;
-    // đuôi vẫy + thân thở
+    // đuôi vẫy + thân thở (giữ tỉ lệ gốc của từng mẫu quái)
     if (u.tail) u.tail.rotation.y = Math.sin(t * 2.6 + m.position.x) * 0.45;
-    if (u.body) { const b = 1 + Math.sin(t * 3.2) * 0.02; u.body.scale.set(b, 0.92 * b, 1.35 * b); }
+    if (u.body) {
+      if (!u.bodyBase) u.bodyBase = u.body.scale.clone();
+      const b = 1 + Math.sin(t * 3.2) * 0.025;
+      u.body.scale.set(u.bodyBase.x * b, u.bodyBase.y * b, u.bodyBase.z * b);
+    }
     if (u.aura) u.aura.material.opacity = 0.28 + Math.sin(t * 4) * 0.12 + spd * 0.1;
   }
   for (const [, m] of crateMeshes) {
