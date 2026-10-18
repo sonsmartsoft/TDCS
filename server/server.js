@@ -446,8 +446,8 @@ setInterval(() => {
   }
   const night = isNight();
 
-  // Spawn quái ban đêm
-  if (night && monsters.size < Math.min(4 + day, 14) && Math.random() < dt * 0.5) spawnMonster();
+  // Spawn quái ban đêm (giảm bớt cho đỡ ngợp)
+  if (night && monsters.size < Math.min(3 + day, 10) && Math.random() < dt * 0.5) spawnMonster();
   // Boss ngày 30
   if (day >= 30 && night && !bossSpawned) {
     bossSpawned = true;
@@ -455,8 +455,8 @@ setInterval(() => {
     broadcast({ t: 'sys', msg: 'CẢNH BÁO: HẮC THÚ VƯƠNG đã xuất hiện!' });
     broadcast({ t: 'monsters', monsters: [...monsters.values()] });
   }
-  // Ngày sáng: quái yếu dần biến mất
-  if (!night && monsters.size > 0 && Math.random() < dt * 0.1) {
+  // Ngày sáng: quái yếu dần biến mất (nhanh hơn trước)
+  if (!night && monsters.size > 0 && Math.random() < dt * 0.25) {
     const k = [...monsters.keys()][0];
     if (!monsters.get(k).boss) monsters.delete(k);
   }

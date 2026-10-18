@@ -795,6 +795,7 @@ function makeHumanoid(shirtColor, name) {
   if (soldierTpl && THREE.SkeletonUtils) {
     const root = new THREE.Group();
     const model = THREE.SkeletonUtils.clone(soldierTpl.scene);
+    model.rotation.y = Math.PI; // Soldier.glb mặt về -Z, xoay 180° cho khớp hướng di chuyển (+Z)
     model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
     root.add(model);
     const mixer = new THREE.AnimationMixer(model);
@@ -1223,10 +1224,10 @@ function updateSky(dt) {
   const k = night ? 1 : 0;
   if (typeof skyDome !== 'undefined' && skyDome) skyDome.rotation.y += dt * 0.004;
   const raining = G.weather === 'mua';
-  sunLight.intensity = (1.15 * (1 - k) + 0.06) * (raining ? 0.6 : 1);
+  sunLight.intensity = (1.45 * (1 - k) + 0.06) * (raining ? 0.6 : 1);
   sunLight.color.setHex(night ? 0x8fa8ff : 0xffe0b3);
   moonLight.intensity = 0.5 * k;
-  hemi.intensity = (0.75 * (1 - k) + 0.25) * (raining ? 0.8 : 1);
+  hemi.intensity = (0.95 * (1 - k) + 0.25) * (raining ? 0.8 : 1);
   scene.fog.density = 0.028 + k * 0.012;
   // sấm sét ngẫu nhiên (dày hơn vào ban đêm)
   boltTimer -= dt;
@@ -1391,6 +1392,7 @@ function initInput() {
       if (G.driving) exitCar();
       else { const car = nearestCar(); if (car) enterCar(car); else tryLoot(); }
     }
+    if (e.key.toLowerCase() === 'q' && !G.driving) tryLoot(); // Q: mở rương
     if (e.key.toLowerCase() === 'b') togglePanel('craft');
     if (e.key.toLowerCase() === 'i') togglePanel('inventory');
     if (e.key.toLowerCase() === 'g') dropSelected();
