@@ -18,8 +18,18 @@ let players = new Map();   // id -> player
 let monsters = new Map();  // id -> monster
 let crates = [];           // thùng vật phẩm
 let drops = [];            // đồ người chơi đánh rơi
+let cars = [];             // xe hơi lái được {id,x,z,ry,speed,color,driver}
 let day = 1, dayTime = 0;
 let seq = 1, bossSpawned = false;
+
+const CAR_COLORS = [0xc0392b, 0x2980b9, 0x1a1a1e, 0xecf0f1, 0xf39c12, 0x27ae60];
+function spawnCars() {
+  cars = [];
+  for (let i = 0; i < 6; i++) cars.push({
+    id: 'car' + i, x: rand(-45, 45), z: rand(-45, 45),
+    ry: rand(0, Math.PI * 2), speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], driver: null,
+  });
+}
 
 const nextId = () => 'e' + (seq++);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -62,37 +72,94 @@ function gearStats(p) {
   return { dmg, maxHp, dmgRed };
 }
 
-// ---------- Vật phẩm / thùng loot ----------
-function spawnCrate() {
-  const lootTable = ['thuoc', 'mi', 'dohop', 'phelieu', 'phelieu', 'go', 'gach', 'mi'];
+// ---------- 6 BẬC RƯƠNG: gỗ → bạch kim (gặp từ nhiều đến ít, cướp từ cao đến thấp) ----------
+const CHEST_TIERS = [
+  { id: 'go',       name: 'Rương Gỗ',       color: 0x8b5a2b, weight: 40, guard: 0.60 },
+  { id: 'dong',     name: 'Rương Đồng',     color: 0xd08a3e, weight: 25, guard: 0.52 },
+  { id: 'sat',      name: 'Rương Sắt',      color: 0x9aa0a8, weight: 18, guard: 0.45 },
+  { id: 'vang',     name: 'Rương Vàng',     color: 0xffd54f, weight: 10, guard: 0.38 },
+  { id: 'kimcuong', name: 'Rương Kim Cương', color: 0x4ff0e8, weight: 5,  guard: 0.30 },
+  { id: 'bachkim',  name: 'Rương Bạch Kim', color: 0xf2f4ff, weight: 2,  guard: 0.20 },
+];
+function rollTier() {
+  const total = CHEST_TIERS.reduce((s, t) => s + t.weight, 0);
+  let r = Math.random() * total;
+  for (const t of CHEST_TIERS) { r -= t.weight; if (r <= 0) return t; }
+  return CHEST_TIERS[0];
+}
+// loot theo bậc: bậc càng cao đồ càng ngon
+function rollTierLoot(tierId) {
   const items = {};
-  const n = 1 + Math.floor(Math.random() * 2);
-  for (let i = 0; i < n; i++) {
-    const it = lootTable[Math.floor(Math.random() * lootTable.length)];
-    items[it] = (items[it] || 0) + 1;
+  const add = (it, n) => items[it] = (items[it] || 0) + n;
+  const basics = ['thuoc', 'mi', 'dohop', 'phelieu', 'go', 'gach', 'vai'];
+  const n = { go: 2, dong: 3, sat: 3, vang: 4, kimcuong: 4, bachkim: 5 }[tierId] || 2;
+  for (let i = 0; i < n; i++) add(basics[Math.floor(Math.random() * basics.length)], 1);
+  let gear = null;
+  const rollGear = (r) => {
+    const rarity = r < 0.15 ? 'huyenthoai' : r < 0.5 ? 'suthi' : 'hiem';
+    const pool = Object.keys(EQUIPMENT).filter(id => EQUIPMENT[id].rarity === rarity);
+    return { uid: nextId(), id: pool[Math.floor(Math.random() * pool.length)] };
+  };
+  const gr = Math.random();
+  if (tierId === 'dong' && gr < 0.25) gear = rollGear(0.8);
+  else if (tierId === 'sat' && gr < 0.45) gear = rollGear(0.55);
+  else if (tierId === 'vang' && gr < 0.65) gear = rollGear(0.35);
+  else if (tierId === 'kimcuong' && gr < 0.8) gear = rollGear(0.2);
+  else if (tierId === 'bachkim') gear = rollGear(gr < 0.5 ? 0.05 : 0.3);
+  return { items, gear };
+}
+function spawnCrate() {
+  const tier = rollTier();
+  const { items } = rollTierLoot(tier.id);
+  crates.push({ id: nextId(), tier: tier.id, x: rand(-WORLD / 2, WORLD / 2), z: rand(-WORLD / 2, WORLD / 2), items });
+}
+for (let i = 0; i < 30; i++) spawnCrate();
+spawnCars();
+
+// ---------- HẠNG QUÁI: F → SSS (càng cao càng mạnh, đồ càng ngon, càng hiếm) ----------
+const RANKS = [
+  { id: 'F',   weight: 45,  hpM: 1.0, dmgM: 1.0, color: '#9e9e9e' },
+  { id: 'C',   weight: 28,  hpM: 1.35, dmgM: 1.2, color: '#66bb6a' },
+  { id: 'B',   weight: 15,  hpM: 1.8,  dmgM: 1.5, color: '#42a5f5' },
+  { id: 'A',   weight: 7,   hpM: 2.5,  dmgM: 1.9, color: '#ab47bc' },
+  { id: 'S',   weight: 3,   hpM: 3.5,  dmgM: 2.5, color: '#ff9800' },
+  { id: 'SS',  weight: 1.5, hpM: 5.0,  dmgM: 3.2, color: '#ef5350' },
+  { id: 'SSS', weight: 0.5, hpM: 8.0,  dmgM: 4.5, color: '#ffd700' },
+];
+function rollRank() {
+  const total = RANKS.reduce((s, r) => s + r.weight, 0);
+  let x = Math.random() * total;
+  for (const r of RANKS) { x -= r.weight; if (x <= 0) return r; }
+  return RANKS[0];
+}
+
+// ---------- THỜI TIẾT: nắng / mưa (server quyết, broadcast cho cả phòng) ----------
+let weather = 'nang';
+let weatherTimer = 0;
+function tickWeather(dt) {
+  weatherTimer -= dt;
+  if (weatherTimer <= 0) {
+    weather = Math.random() < 0.72 ? 'nang' : 'mua';
+    weatherTimer = 150 + Math.random() * 150; // đổi mỗi 2.5–5 phút
   }
-  crates.push({ id: nextId(), x: rand(-WORLD/2, WORLD/2), z: rand(-WORLD/2, WORLD/2), items });
 }
-for (let i = 0; i < 25; i++) spawnCrate();
 
-// ---------- Rương trang bị (mỗi ngày rơi thêm, tối đa 5) ----------
-function spawnEquipCrate() {
-  if (crates.filter(c => c.kind === 'equip').length >= 5) return;
-  crates.push({ id: nextId(), kind: 'equip', x: rand(-WORLD/2, WORLD/2), z: rand(-WORLD/2, WORLD/2) });
-}
-for (let i = 0; i < 3; i++) spawnEquipCrate();
-
-// ---------- Quái ----------
-function spawnMonster(boss = false) {
+// ---------- Quái (có hạng F→SSS) ----------
+function spawnMonster(boss = false, near = null, bandit = false) {
+  const rk = boss ? RANKS[6] : rollRank();
   const a = Math.random() * Math.PI * 2;
   const r = WORLD / 2 - 5;
+  const baseHp = boss ? 1500 : 40 + day * 6;
+  const baseDmg = boss ? 35 : 6 + day;
   const m = {
-    id: nextId(), boss,
-    x: Math.cos(a) * r, z: Math.sin(a) * r,
-    hp: boss ? 1500 : 40 + day * 6,
-    maxHp: boss ? 1500 : 40 + day * 6,
-    speed: boss ? 3.2 : 2.2 + day * 0.06,
-    dmg: boss ? 35 : 6 + day,
+    id: nextId(), boss, bandit,
+    rank: rk.id, rankColor: rk.color,
+    x: near ? near.x + (Math.random() - .5) * 8 : Math.cos(a) * r,
+    z: near ? near.z + (Math.random() - .5) * 8 : Math.sin(a) * r,
+    hp: Math.round(baseHp * rk.hpM * (bandit ? 1.2 : 1)),
+    maxHp: Math.round(baseHp * rk.hpM * (bandit ? 1.2 : 1)),
+    speed: (boss ? 3.2 : 2.2 + day * 0.06) * (bandit ? 1.25 : 1),
+    dmg: Math.round(baseDmg * rk.dmgM),
     atkCd: 0
   };
   monsters.set(m.id, m);
@@ -137,10 +204,10 @@ wss.on('connection', (ws) => {
       };
       players.set(pid, p);
       send(ws, {
-        t: 'welcome', id: pid, day, dayTime,
+        t: 'welcome', id: pid, day, dayTime, weather,
         players: [...players.values()].map(pub),
         monsters: [...monsters.values()],
-        crates, drops, gear: p.gear, equipped: p.equipped
+        crates, drops, cars, gear: p.gear, equipped: p.equipped
       });
       broadcast({ t: 'join', p: pub(p) }, pid);
       broadcast({ t: 'sys', msg: p.name + ' đã vào game.' }, pid);
@@ -150,11 +217,48 @@ wss.on('connection', (ws) => {
     const p = players.get(pid);
 
     // --- Di chuyển ---
+    // --- Xe: lên/xuống/lái ---
+    if (m.t === 'enterCar') {
+      const c = cars.find(x => x.id === m.carId);
+      if (c && !c.driver) {
+        // nhả xe cũ nếu đang lái xe khác
+        const old = cars.find(x => x.driver === pid);
+        if (old) old.driver = null;
+        c.driver = pid; p.driving = c.id;
+        broadcast({ t: 'cars', cars });
+      }
+      return;
+    }
+    if (m.t === 'exitCar') {
+      const c = cars.find(x => x.driver === pid);
+      if (c) { c.driver = null; c.speed = 0; }
+      p.driving = null;
+      broadcast({ t: 'cars', cars });
+      return;
+    }
+    if (m.t === 'drive') {
+      const c = cars.find(x => x.id === m.carId);
+      // chỉ người đang lái mới được cập nhật xe đó
+      if (c && c.driver === pid) {
+        c.x = Math.max(-60, Math.min(60, +m.x || 0));
+        c.z = Math.max(-60, Math.min(60, +m.z || 0));
+        c.ry = +m.ry || 0; c.speed = +m.speed || 0;
+        p.x = c.x; p.z = c.z; // quái vẫn đuổi theo xe
+      }
+      return;
+    }
     if (m.t === 'move') {
       p.x = Math.max(-WORLD/2, Math.min(WORLD/2, +m.x || 0));
       p.z = Math.max(-WORLD/2, Math.min(WORLD/2, +m.z || 0));
       p.ry = +m.ry || 0;
       p.anim = m.anim === 'walk' ? 'walk' : (m.anim === 'atk' ? 'atk' : 'idle');
+      return;
+    }
+    // --- Voice chat signaling (WebRTC): chuyển tiếp tới đúng người ---
+    if (m.t === 'rtc' && m.to && players.has(m.to)) {
+      const target = players.get(m.to);
+      if (target.ws.readyState === WebSocket.OPEN)
+        target.ws.send(JSON.stringify({ t: 'rtc', from: pid, data: m.data }));
       return;
     }
     // --- Chat ---
@@ -163,25 +267,30 @@ wss.on('connection', (ws) => {
       if (msg) broadcast({ t: 'chat', from: p.name, msg });
       return;
     }
-    // --- Loot thùng ---
+    // --- Loot thùng (6 bậc + 45% cướp giữ rương) ---
     if (m.t === 'loot') {
       const i = crates.findIndex(c => c.id === m.crateId);
       if (i >= 0 && dist(p, crates[i]) < 4) {
         const c = crates.splice(i, 1)[0];
-        if (c.kind === 'equip') {
-          // Rương trang bị: rơi 1 món theo độ hiếm
-          const g = rollEquipment();
-          p.gear.push(g);
-          const e = EQUIPMENT[g.id];
-          const st = gearStats(p);
-          p.maxHp = st.maxHp;
+        const tier = CHEST_TIERS.find(t => t.id === c.tier) || CHEST_TIERS[0];
+        const { gear } = rollTierLoot(tier.id);
+        for (const k in c.items) p.inv[k] = (p.inv[k] || 0) + c.items[k];
+        send(ws, { t: 'inv', inv: p.inv });
+        let msg = 'Mở ' + tier.name + ': ' + Object.entries(c.items).map(([k, v]) => (ITEM_NAMES[k] || k) + ' x' + v).join(', ');
+        if (gear) {
+          p.gear.push(gear);
+          const e = EQUIPMENT[gear.id];
+          const st = gearStats(p); p.maxHp = st.maxHp;
           send(ws, { t: 'gear', gear: p.gear, equipped: p.equipped, maxHp: p.maxHp });
-          send(ws, { t: 'lootEquip', uid: g.uid, id: g.id });
-          send(ws, { t: 'sys', msg: 'Mở rương trang bị: nhận ' + e.name + ' [' + RARITY_NAME[e.rarity] + ']' });
-        } else {
-          for (const k in c.items) p.inv[k] = (p.inv[k] || 0) + c.items[k];
-          send(ws, { t: 'inv', inv: p.inv });
-          send(ws, { t: 'sys', msg: 'Nhặt được: ' + Object.entries(c.items).map(([k, v]) => (ITEM_NAMES[k] || k) + ' x' + v).join(', ') });
+          send(ws, { t: 'lootEquip', uid: gear.uid, id: gear.id });
+          msg += ' + ' + e.icon + ' ' + e.name + ' [' + RARITY_NAME[e.rarity] + ']';
+        }
+        send(ws, { t: 'sys', msg });
+        // cướp giữ rương!
+        if (Math.random() < tier.guard) {
+          const b = spawnMonster(false, p, true);
+          broadcast({ t: 'monsters', monsters: [...monsters.values()] });
+          send(ws, { t: 'sys', msg: '⚠️ Cướp giữ rương xuất hiện! (hạng ' + b.rank + ')' });
         }
         broadcast({ t: 'crates', crates });
         setTimeout(() => { spawnCrate(); broadcast({ t: 'crates', crates }); }, 45000);
@@ -303,6 +412,9 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (pid && players.has(pid)) {
       const p = players.get(pid);
+      // nhả xe đang lái
+      const c = cars.find(x => x.driver === pid);
+      if (c) { c.driver = null; c.speed = 0; broadcast({ t: 'cars', cars }); }
       players.delete(pid);
       broadcast({ t: 'left', id: pid });
       broadcast({ t: 'sys', msg: p.name + ' đã rời game.' });
@@ -311,7 +423,7 @@ wss.on('connection', (ws) => {
 });
 
 function pub(p) {
-  return { id: p.id, name: p.name, x: p.x, z: p.z, ry: p.ry, anim: p.anim, hp: p.hp, dead: p.dead };
+  return { id: p.id, name: p.name, x: p.x, z: p.z, ry: p.ry, anim: p.anim, hp: p.hp, dead: p.dead, driving: p.driving || null };
 }
 
 // ---------- Vòng lặp game ----------
@@ -321,12 +433,14 @@ setInterval(() => {
 
   // Ngày/đêm
   dayTime += dt;
+  tickWeather(dt);
   if (dayTime >= DAY_LENGTH) {
     dayTime = 0; day++;
     bossSpawned = false;
     broadcast({ t: 'sys', msg: '—— Ngày ' + day + ' ——' });
-    // Mỗi ngày rơi thêm rương trang bị
-    spawnEquipCrate();
+    // Mỗi ngày rơi thêm vài rương ngẫu nhiên bậc
+    for (let k = 0; k < 3; k++) spawnCrate();
+    broadcast({ t: 'crates', crates });
     broadcast({ t: 'crates', crates });
     broadcast({ t: 'sys', msg: '◆ RƯƠNG TRANG BỊ đã xuất hiện đâu đó trong thành phố!' });
   }
@@ -385,12 +499,13 @@ setInterval(() => {
   if (!this._c) this._c = 0;
   if (++this._c % 5 === 0) {
     broadcast({ t: 'players', list: [...players.values()].map(pub) });
-    broadcast({ t: 'day', day, dayTime, night });
+    broadcast({ t: 'day', day, dayTime, night, weather });
   }
-  // Broadcast quái (5Hz)
+  // Broadcast quái (5Hz) + xe (2Hz)
   if (this._c % 10 === 0 && monsters.size) {
     broadcast({ t: 'monsters', monsters: [...monsters.values()] });
   }
+  if (this._c % 25 === 0) broadcast({ t: 'cars', cars });
 }, TICK);
 
 httpServer.listen(PORT, () => console.log('Toàn Dân Cầu Sinh server chạy tại port ' + PORT));

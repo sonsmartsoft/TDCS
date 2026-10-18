@@ -23,6 +23,86 @@ const RECIPES = [
   { id: 'leu', name: 'Lều Bạt', desc: 'Hồi máu khi đứng gần', need: { go: 4 } },
   { id: 'tuong', name: 'Tường Chắn', desc: 'Chặn quái một lúc', need: { go: 4, gach: 2 } },
 ];
+
+// ---------- ÂM THANH (Web Audio API — tự tổng hợp, không cần file) ----------
+const SFX = {
+  ctx: null, enabled: true, engine: null,
+  init() {
+    if (!this.ctx) {
+      try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  now() { return this.ctx ? this.ctx.currentTime : 0; },
+  tone(freq, dur, type, vol, slideTo, delay) {
+    if (!this.ctx || !this.enabled) return;
+    const t0 = this.now() + (delay || 0);
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t0 + dur);
+    g.gain.setValueAtTime(vol || 0.2, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(this.ctx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  },
+  noise(dur, filterFreq, vol, type, delay) {
+    if (!this.ctx || !this.enabled) return;
+    const t0 = this.now() + (delay || 0);
+    const len = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const f = this.ctx.createBiquadFilter(); f.type = type || 'lowpass'; f.frequency.value = filterFreq || 1000;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol || 0.25, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(this.ctx.destination);
+    src.start(t0); src.stop(t0 + dur + 0.05);
+  },
+  play(name) {
+    if (!this.ctx || !this.enabled) return;
+    switch (name) {
+      case 'click': this.tone(750, 0.06, 'square', 0.08); break;
+      case 'swing': this.noise(0.16, 2400, 0.16, 'bandpass'); break;
+      case 'hit': this.tone(130, 0.18, 'sine', 0.35, 55); this.noise(0.1, 900, 0.2); break;
+      case 'hurt': this.tone(300, 0.25, 'sawtooth', 0.16, 140); break;
+      case 'pickup': this.tone(660, 0.09, 'sine', 0.18); this.tone(880, 0.12, 'sine', 0.18, 0, 0.08); break;
+      case 'equip': [523, 659, 784].forEach((f, i) => this.tone(f, 0.14, 'triangle', 0.2, 0, i * 0.09)); break;
+      case 'legend': [523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.22, 0, i * 0.1)); this.noise(0.5, 6000, 0.06, 'highpass', 0.2); break;
+      case 'growl': this.tone(68, 0.7, 'sawtooth', 0.22, 45); this.noise(0.6, 300, 0.14); break;
+      case 'die': this.tone(220, 0.5, 'sawtooth', 0.2, 60); this.noise(0.35, 500, 0.18); break;
+      case 'bossWarn': for (let i = 0; i < 3; i++) { this.tone(440, 0.16, 'square', 0.14, 0, i * 0.34); this.tone(620, 0.16, 'square', 0.14, 0, i * 0.34 + 0.17); } break;
+      case 'day': this.tone(523, 0.25, 'sine', 0.12); this.tone(784, 0.35, 'sine', 0.12, 0, 0.18); break;
+      case 'death': this.tone(330, 0.9, 'sawtooth', 0.2, 55); break;
+      case 'win': [523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.22, 0, i * 0.16)); break;
+      case 'horn': this.tone(370, 0.35, 'square', 0.12); this.tone(466, 0.35, 'square', 0.12); break;
+      case 'craft': this.noise(0.12, 1800, 0.15, 'bandpass'); this.tone(440, 0.1, 'triangle', 0.15, 0, 0.08); break;
+      case 'chat': this.tone(990, 0.07, 'sine', 0.1); break;
+      case 'rain': this.noise(1.6, 2500, 0.1, 'highpass'); this.noise(1.6, 800, 0.08); break;
+    }
+  },
+  engineStart() {
+    if (!this.ctx || !this.enabled || this.engine) return;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.value = 55;
+    f.type = 'lowpass'; f.frequency.value = 320;
+    g.gain.value = 0.0;
+    o.connect(f); f.connect(g); g.connect(this.ctx.destination);
+    o.start();
+    this.engine = { o, g };
+  },
+  engineSet(speedK) { // speedK: 0..1
+    if (this.engine) {
+      this.engine.o.frequency.value = 55 + speedK * 90;
+      this.engine.g.gain.value = 0.05 + speedK * 0.1;
+    }
+  },
+  engineStop() {
+    if (this.engine) { try { this.engine.o.stop(); } catch {} this.engine = null; }
+  },
+  toggle() { this.enabled = !this.enabled; if (!this.enabled) this.engineStop(); return this.enabled; }
+};
 // ---------- TRANG BỊ (mirror server) ----------
 const EQUIPMENT = {
   kiem_sat:  { name: 'Kiếm Sắt',       icon: '🗡️', type: 'weapon', rarity: 'hiem',       dmg: 20, desc: '+20 sát thương' },
@@ -48,7 +128,8 @@ const G = {
   hp: 100, maxHp: 100, doi: 100, theluc: 100,
   inv: { mi: 2 }, weapon: 'tay', crafted: {},
   gear: [], equipped: {},
-  day: 1, dayTime: 0, night: false,
+  cars: [], driving: null,
+  day: 1, dayTime: 0, night: false, mapMode: 1, weather: 'nang',
   players: new Map(), monsters: new Map(), crates: [], drops: [],
   dead: false, chatting: false,
   pos: { x: 0, z: 8 }, ry: 0, camYaw: 0, camPitch: 0.35,
@@ -76,19 +157,29 @@ function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 function handleMsg(m) {
   switch (m.t) {
     case 'welcome':
-      G.myId = m.id; G.day = m.day; G.dayTime = m.dayTime;
+      G.myId = m.id; G.day = m.day; G.dayTime = m.dayTime; G.weather = m.weather || 'nang';
       m.players.forEach(p => upsertPlayer(p));
       m.monsters.forEach(mo => upsertMonster(mo));
       G.crates = m.crates; G.drops = m.drops;
+      G.cars = m.cars || [];
       G.gear = m.gear || []; G.equipped = m.equipped || {};
-      rebuildCrates(); rebuildDrops(); renderGear();
+      rebuildCrates(); rebuildDrops(); renderGear(); syncCarMeshes();
+      document.getElementById('btn-mic').classList.remove('hidden'); // online mới có voice chat
       break;
     case 'join': upsertPlayer(m.p); break;
-    case 'left': removePlayer(m.id); break;
+    case 'left': removePlayer(m.id); VC.remove(m.id); break;
     case 'players': m.list.forEach(p => upsertPlayer(p)); break;
     case 'monsters': m.monsters.forEach(mo => upsertMonster(mo)); syncMonsterMeshes(m.monsters.map(x => x.id)); break;
-    case 'day': G.day = m.day; G.dayTime = m.dayTime; G.night = m.night; break;
+    case 'day':
+      G.day = m.day; G.dayTime = m.dayTime; G.night = m.night;
+      if (m.weather && m.weather !== G.weather) {
+        G.weather = m.weather;
+        sysMsg(m.weather === 'mua' ? '🌧️ Trời đổ mưa...' : '☀️ Trời quang mây tạnh.');
+        SFX.play(m.weather === 'mua' ? 'rain' : 'day');
+      }
+      break;
     case 'chat': chatMsg(m.from, m.msg); break;
+    case 'rtc': VC.onSignal(m.from, m.data); break;
     case 'sys': sysMsg(m.msg); break;
     case 'inv': G.inv = m.inv; renderInv(); renderHotbar(); break;
     case 'gear':
@@ -105,11 +196,12 @@ function handleMsg(m) {
     case 'doi': G.doi = m.doi; break;
     case 'crates': G.crates = m.crates; rebuildCrates(); break;
     case 'drops': G.drops = m.drops; rebuildDrops(); break;
+    case 'cars': G.cars = m.cars; syncCarMeshes(); break;
     case 'dead': onDeath(); break;
     case 'playerDead': markDead(m.id); break;
     case 'respawnOk': G.dead = false; G.pos.x = m.x; G.pos.z = m.z; hideEnd(); break;
     case 'craftOk': G.crafted[m.item] = true; if (WEAPONS[m.item]) G.weapon = m.item; sysMsg(m.msg); renderHotbar(); break;
-    case 'win': showEnd('CHIẾN THẮNG!', 'Cả phòng đã tiêu diệt Hắc Thú Vương. Bạn đã đi đến cuối con đường!'); break;
+    case 'win': SFX.play('win'); showEnd('CHIẾN THẮNG!', 'Cả phòng đã tiêu diệt Hắc Thú Vương. Bạn đã đi đến cuối con đường!'); break;
   }
 }
 
@@ -117,31 +209,61 @@ function handleMsg(m) {
 let offMonsters = [];
 function initOffline() {
   sysMsg('Chế độ chơi đơn — quái do máy điều khiển.');
-  if (!G.crates.length) for (let i = 0; i < 25; i++) G.crates.push({
-    id: 'c' + i, x: (Math.random() - .5) * 100, z: (Math.random() - .5) * 100,
-    items: { [['mi', 'dohop', 'thuoc', 'phelieu'][Math.floor(Math.random() * 4)]]: 1 + Math.floor(Math.random() * 2) }
-  });
-  // 3 rương trang bị lúc đầu
-  if (!G.crates.some(c => c.kind === 'equip')) for (let i = 0; i < 3; i++)
-    G.crates.push({ id: 'ec' + i, kind: 'equip', x: (Math.random() - .5) * 80, z: (Math.random() - .5) * 80 });
+  // 30 rương 6 bậc lúc đầu (offline)
+  const TIERS_W = [['go', 40], ['dong', 25], ['sat', 18], ['vang', 10], ['kimcuong', 5], ['bachkim', 2]];
+  const rollT = () => { let r = Math.random() * 100; for (const [id, w] of TIERS_W) { r -= w; if (r <= 0) return id; } return 'go'; };
+  if (!G.crates.length) for (let i = 0; i < 30; i++)
+    G.crates.push({ id: 'c' + i, tier: rollT(), x: (Math.random() - .5) * 160, z: (Math.random() - .5) * 160 });
   rebuildCrates();
+  // xe hơi lái được (offline)
+  if (!G.cars.length) {
+    for (let i = 0; i < 6; i++) {
+      G.cars.push({
+        id: 'car' + i, x: (Math.random() - .5) * 90, z: (Math.random() - .5) * 90,
+        ry: Math.random() * Math.PI * 2, color: CAR_COLORS[i % CAR_COLORS.length], driver: null,
+      });
+    }
+    syncCarMeshes();
+  }
   // 2 con quái yếu ngay từ đầu để luyện đánh
   if (!offMonsters.length) for (let i = 0; i < 2; i++)
-    offMonsters.push({ id: 'prac' + i, x: 5 + i * 5, z: -8, hp: 30, maxHp: 30, speed: 1.7, dmg: 4, atkCd: 0 });
+    offMonsters.push({ id: 'prac' + i, x: 5 + i * 5, z: -8, hp: 30, maxHp: 30, speed: 1.7, dmg: 4, atkCd: 0, rank: 'F', rankColor: '#9e9e9e' });
+  // thời tiết offline: tự đổi ngẫu nhiên
+  if (G.weatherTimer === undefined) G.weatherTimer = 120;
+  G.weatherTimer -= 1 / 60;
+  if (G.weatherTimer <= 0) { G.weather = Math.random() < 0.72 ? 'nang' : 'mua'; G.weatherTimer = 150 + Math.random() * 150; }
+}
+// hạng quái offline (đồng bộ tỉ lệ với server)
+const RANKS_OFF = [
+  { id: 'F', weight: 45, hpM: 1.0, dmgM: 1.0, color: '#9e9e9e' },
+  { id: 'C', weight: 28, hpM: 1.35, dmgM: 1.2, color: '#66bb6a' },
+  { id: 'B', weight: 15, hpM: 1.8, dmgM: 1.5, color: '#42a5f5' },
+  { id: 'A', weight: 7, hpM: 2.5, dmgM: 1.9, color: '#ab47bc' },
+  { id: 'S', weight: 3, hpM: 3.5, dmgM: 2.5, color: '#ff9800' },
+  { id: 'SS', weight: 1.5, hpM: 5.0, dmgM: 3.2, color: '#ef5350' },
+  { id: 'SSS', weight: 0.5, hpM: 8.0, dmgM: 4.5, color: '#ffd700' },
+];
+function rollRankOff() {
+  let x = Math.random() * 100;
+  for (const r of RANKS_OFF) { x -= r.weight; if (x <= 0) return r; }
+  return RANKS_OFF[0];
 }
 function offlineTick(dt) {
   if (G.online) return;
   G.dayTime += dt;
-  if (G.dayTime >= CFG.dayLength) { G.dayTime = 0; G.day++; sysMsg('—— Ngày ' + G.day + ' ——'); }
+  if (G.dayTime >= CFG.dayLength) { G.dayTime = 0; G.day++; sysMsg('—— Ngày ' + G.day + ' ——'); SFX.play('day'); }
   G.night = G.dayTime >= CFG.dayLength * 2 / 3;
   if (G.night && offMonsters.length < Math.min(3 + G.day, 10) && Math.random() < dt * 0.4) {
     const a = Math.random() * Math.PI * 2, r = 50;
-    offMonsters.push({ id: 'm' + Date.now() + Math.random(), x: Math.cos(a) * r, z: Math.sin(a) * r, hp: 40 + G.day * 6, maxHp: 40 + G.day * 6, speed: 2.4, dmg: 6 + G.day, atkCd: 0 });
+    const rk = rollRankOff();
+    const hp = Math.round((40 + G.day * 6) * rk.hpM), dg = Math.round((6 + G.day) * rk.dmgM);
+    offMonsters.push({ id: 'm' + Date.now() + Math.random(), x: Math.cos(a) * r, z: Math.sin(a) * r, hp, maxHp: hp, speed: 2.4, dmg: dg, atkCd: 0, rank: rk.id, rankColor: rk.color });
   }
   // boss ngày 30
   if (G.day >= 30 && G.night && !offMonsters.some(m => m.boss)) {
-    offMonsters.push({ id: 'boss' + Date.now(), boss: true, x: 40, z: 0, hp: 1500, maxHp: 1500, speed: 3.2, dmg: 35, atkCd: 0 });
+    offMonsters.push({ id: 'boss' + Date.now(), boss: true, x: 40, z: 0, hp: 1500, maxHp: 1500, speed: 3.2, dmg: 35, atkCd: 0, rank: 'SSS', rankColor: '#ffd700' });
     sysMsg('CẢNH BÁO: HẮC THÚ VƯƠNG đã xuất hiện!');
+    SFX.play('bossWarn');
   }
   for (const mo of offMonsters) {
     mo.atkCd -= dt;
@@ -158,6 +280,7 @@ function offlineTick(dt) {
 function hurtPlayer(dmg) {
   if (G.dead) return;
   G.hp -= dmg; damageFlash(); G.shake = Math.min(0.5, G.shake + 0.18);
+  SFX.play('hurt');
   if (G.hp <= 0) { G.hp = 0; onDeath(); }
 }
 function damageFlash() {
@@ -251,13 +374,19 @@ function initThree() {
   const gTex = new THREE.CanvasTexture(gCanvas);
   gTex.wrapS = gTex.wrapT = THREE.RepeatWrapping; gTex.repeat.set(16, 16);
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(CFG.world + 60, CFG.world + 60),
+    new THREE.PlaneGeometry(240, 240),
     new THREE.MeshStandardMaterial({ map: gTex, roughness: 0.95, metalness: 0.05 })
   );
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
   scene.add(ground);
+  // đất bám theo người chơi (không còn giới hạn map)
+  ground.onBeforeRender = () => {
+    ground.position.x = G.pos.x; ground.position.z = G.pos.z;
+  };
 
   buildRuins();
+  buildVegetation();
+  buildSky();
   buildSkyline();
   buildFires();
   buildAsh();
@@ -283,6 +412,103 @@ function initThree() {
 }
 
 // --- Tàn tích thành phố chi tiết ---
+// --- BẦU TRỜI: mặt trời / mặt trăng / sao / mưa ---
+let sunMesh, moonMesh, starPts, rainPts, rainVel;
+function buildSky() {
+  // mặt trời: quả cầu phát sáng
+  sunMesh = new THREE.Mesh(new THREE.SphereGeometry(9, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffdf6b, fog: false }));
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xffca55, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9, fog: false }));
+  sunGlow.scale.set(55, 55, 1); sunMesh.add(sunGlow);
+  scene.add(sunMesh);
+  // mặt trăng
+  moonMesh = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xe8ecf5, fog: false }));
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xbdc8e8, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55, fog: false }));
+  moonGlow.scale.set(34, 34, 1); moonMesh.add(moonGlow);
+  scene.add(moonMesh);
+  // sao: 700 điểm trên vòm trời
+  const sg = new THREE.BufferGeometry();
+  const sp = new Float32Array(700 * 3);
+  for (let i = 0; i < 700; i++) {
+    const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI * 0.48 + 0.03;
+    const r = 380;
+    sp[i * 3] = Math.cos(a) * Math.cos(e) * r;
+    sp[i * 3 + 1] = Math.sin(e) * r;
+    sp[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
+  }
+  sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  starPts = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+  scene.add(starPts);
+  // mưa: 900 hạt trong hộp quanh camera
+  const rg = new THREE.BufferGeometry();
+  const rp = new Float32Array(900 * 3);
+  rainVel = new Float32Array(900);
+  for (let i = 0; i < 900; i++) {
+    rp[i * 3] = (Math.random() - .5) * 60;
+    rp[i * 3 + 1] = Math.random() * 30;
+    rp[i * 3 + 2] = (Math.random() - .5) * 60;
+    rainVel[i] = 22 + Math.random() * 10;
+  }
+  rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+  rainPts = new THREE.Points(rg, new THREE.PointsMaterial({ color: 0x9fc8ff, size: 0.14, transparent: true, opacity: 0.65, depthWrite: false }));
+  rainPts.visible = false;
+  scene.add(rainPts);
+}
+function buildVegetation() {
+  const trunkM = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.9 });
+  const leafM = new THREE.MeshStandardMaterial({ color: 0x2d6a2d, roughness: 0.85 });
+  const leafM2 = new THREE.MeshStandardMaterial({ color: 0x3d8a3d, roughness: 0.85 });
+  const grassM = new THREE.MeshStandardMaterial({ color: 0x4a9a4a, roughness: 0.9 });
+  const flowerColors = [0xff6b9d, 0xffd54f, 0xff8a65, 0xce93d8, 0xffffff, 0x80deea];
+  // cây: thân + 2-3 tán lá
+  for (let i = 0; i < 60; i++) {
+    const t = new THREE.Group();
+    const h = 1.5 + Math.random() * 2;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, h, 7), trunkM);
+    trunk.position.y = h / 2; trunk.castShadow = true; t.add(trunk);
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let j = 0; j < n; j++) {
+      const r = 0.8 + Math.random() * 0.9;
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), Math.random() < 0.5 ? leafM : leafM2);
+      leaf.position.set((Math.random() - .5) * 1.2, h + j * 0.7, (Math.random() - .5) * 1.2);
+      leaf.castShadow = true; t.add(leaf);
+    }
+    const a = Math.random() * Math.PI * 2, rr = 25 + Math.random() * 320;
+    t.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+    t.rotation.y = Math.random() * 6;
+    const s = 0.8 + Math.random() * 0.7; t.scale.set(s, s, s);
+    scene.add(t);
+  }
+  // hoa: thân nhỏ + bông
+  for (let i = 0; i < 90; i++) {
+    const f = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.35, 5), grassM);
+    stem.position.y = 0.17; f.add(stem);
+    const col = flowerColors[Math.floor(Math.random() * flowerColors.length)];
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 7, 6),
+      new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.25 }));
+    head.position.y = 0.4; f.add(head);
+    const a = Math.random() * Math.PI * 2, rr = 12 + Math.random() * 330;
+    f.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+    scene.add(f);
+  }
+  // cỏ: 3 lá chéo nhau
+  const bladeG = new THREE.ConeGeometry(0.09, 0.5, 5);
+  for (let i = 0; i < 220; i++) {
+    const g = new THREE.Group();
+    for (let j = 0; j < 3; j++) {
+      const b = new THREE.Mesh(bladeG, grassM);
+      b.position.set((Math.random() - .5) * 0.25, 0.22, (Math.random() - .5) * 0.25);
+      b.rotation.z = (Math.random() - .5) * 0.5;
+      g.add(b);
+    }
+    const a = Math.random() * Math.PI * 2, rr = 8 + Math.random() * 335;
+    g.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+    const s = 0.7 + Math.random() * 0.9; g.scale.set(s, s, s);
+    scene.add(g);
+  }
+}
 function buildRuins() {
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x35343e, roughness: 0.9 });
   const wallMat2 = new THREE.MeshStandardMaterial({ color: 0x2a2933, roughness: 0.9 });
@@ -341,15 +567,10 @@ function buildRuins() {
   }
   // xe hơi cháy rụi
   const carMat = new THREE.MeshStandardMaterial({ color: 0x1a1a20, roughness: 0.85, metalness: 0.3 });
+  // xe cháy bỏ hoang: dùng mẫu xe thật nhưng sơn cháy đen + móp
   for (let i = 0; i < 7; i++) {
-    const car = new THREE.Group();
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.1, 1.9), carMat); cab.position.y = 0.8; cab.castShadow = true; car.add(cab);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 1.7), carMat); top.position.set(-0.2, 1.6, 0); top.castShadow = true; car.add(top);
-    const wg = new THREE.CylinderGeometry(0.42, 0.42, 0.3, 10);
-    const wm = new THREE.MeshStandardMaterial({ color: 0x0a0a0c });
-    [[-1.4, 0.95], [1.4, 0.95], [-1.4, -0.95], [1.4, -0.95]].forEach(([wx, wz]) => {
-      const wh = new THREE.Mesh(wg, wm); wh.rotation.x = Math.PI / 2; wh.position.set(wx, 0.42, wz); car.add(wh);
-    });
+    const car = makeCar(0x1c1c20);
+    car.traverse(o => { if (o.isMesh && o.material && o.material.color) { o.material = o.material.clone(); o.material.color.multiplyScalar(0.35); } });
     const a = Math.random() * Math.PI * 2, r = 14 + Math.random() * 36;
     car.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
     car.rotation.y = Math.random() * Math.PI * 2;
@@ -742,52 +963,166 @@ function makeMonster(boss) {
   // hào quang đỏ
   const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xff2222, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35 }));
   aura.scale.set(4.6 * s, 4.6 * s, 1); aura.position.y = 1.3 * s; grp.add(aura);
-  // thanh máu hologram
-  const hpBg = new THREE.Mesh(new THREE.PlaneGeometry(1.7 * s, 0.14 * s), new THREE.MeshBasicMaterial({ color: 0x1a0202, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
-  hpBg.position.y = 2.9 * s; grp.add(hpBg);
-  const hpFg = new THREE.Mesh(new THREE.PlaneGeometry(1.7 * s, 0.14 * s), new THREE.MeshBasicMaterial({ color: 0xff3838, side: THREE.DoubleSide }));
-  hpFg.position.set(0, 2.9 * s, 0.01); grp.add(hpFg);
-  grp.userData = { hpFg, hpW: 1.7 * s, aura, jawG, legs, tail, body: chest, jawOpen: 0, px: 0, pz: 0 };
+  // thanh máu: canvas sprite luôn hướng về camera, to rõ
+  const hpCv = document.createElement('canvas'); hpCv.width = 128; hpCv.height = 20;
+  const hpTex = new THREE.CanvasTexture(hpCv);
+  const hpSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, depthWrite: false, transparent: true }));
+  hpSpr.scale.set(2.4 * s, 0.375 * s, 1); hpSpr.position.y = 2.9 * s; grp.add(hpSpr);
+  grp.userData = { hpCv, hpTex, hpSpr, hpW: 1.7 * s, aura, jawG, legs, tail, body: chest, jawOpen: 0, px: 0, pz: 0 };
   return grp;
+}
+// vẽ thanh máu lên canvas (gọi khi hp đổi)
+function drawHpBar(ud, ratio) {
+  const g = ud.hpCv.getContext('2d');
+  g.clearRect(0, 0, 128, 20);
+  g.fillStyle = 'rgba(10,0,0,0.75)'; g.fillRect(0, 0, 128, 20);
+  g.strokeStyle = '#ff3838'; g.lineWidth = 2; g.strokeRect(1, 1, 126, 18);
+  const w = Math.max(0, 124 * Math.max(0, Math.min(1, ratio)));
+  const grad = g.createLinearGradient(0, 0, 124, 0);
+  grad.addColorStop(0, '#ff5252'); grad.addColorStop(1, '#c62828');
+  g.fillStyle = grad; g.fillRect(2, 2, w, 16);
+  ud.hpTex.needsUpdate = true;
+}
+// --- XE HƠI realistic: thân extrude theo biên dạng sedan + kính + mâm ---
+function makeCar(color) {
+  const grp = new THREE.Group();
+  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.32, metalness: 0.65 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x0e1a24, roughness: 0.08, metalness: 0.9 });
+  const darkM = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.8 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.25, metalness: 0.95 });
+  // biên dạng hông xe sedan (x: dài, y: cao)
+  const sh = new THREE.Shape();
+  sh.moveTo(-2.2, 0.32); sh.lineTo(-2.25, 0.85); sh.lineTo(-1.15, 0.92); sh.lineTo(-0.55, 1.32);
+  sh.lineTo(0.55, 1.36); sh.lineTo(1.25, 0.92); sh.lineTo(2.2, 0.82); sh.lineTo(2.32, 0.35);
+  sh.lineTo(2.32, 0.28); sh.lineTo(-2.2, 0.28); sh.closePath();
+  const bodyG = new THREE.ExtrudeGeometry(sh, { depth: 1.66, bevelEnabled: true, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 2 });
+  bodyG.translate(0, 0, -0.83);
+  const body = new THREE.Mesh(bodyG, paint);
+  body.castShadow = true; body.receiveShadow = true; grp.add(body);
+  // kính chắn gió + kính hông (một khối cabin kính hơi nhỏ hơn)
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.42, 1.5), glass);
+  cab.position.set(-0.02, 1.14, 0); cab.castShadow = true; grp.add(cab);
+  // cản trước/sau
+  const bf = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 1.78), darkM);
+  bf.position.set(2.28, 0.42, 0); grp.add(bf);
+  const bb = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 1.78), darkM);
+  bb.position.set(-2.28, 0.42, 0); grp.add(bb);
+  // đèn pha + đèn hậu
+  const hlM = new THREE.MeshBasicMaterial({ color: 0xfff6c8 });
+  const tlM = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+  [-0.62, 0.62].forEach(z => {
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.34), hlM);
+    h.position.set(2.34, 0.72, z); grp.add(h);
+    const t = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 0.3), tlM);
+    t.position.set(-2.34, 0.74, z); grp.add(t);
+  });
+  // gương chiếu hậu
+  [-1, 1].forEach(s => {
+    const mr = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.16), paint);
+    mr.position.set(0.72, 1.05, 0.92 * s); grp.add(mr);
+  });
+  // 4 bánh: lốp + mâm + trục
+  const wheels = [];
+  const tireG = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 18);
+  const rimG = new THREE.CylinderGeometry(0.2, 0.2, 0.27, 10);
+  const tireM = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.95 });
+  [[1.35, 0.92], [1.35, -0.92], [-1.35, 0.92], [-1.35, -0.92]].forEach(([wx, wz]) => {
+    const wg = new THREE.Group(); wg.position.set(wx, 0.36, wz);
+    const tire = new THREE.Mesh(tireG, tireM); tire.rotation.x = Math.PI / 2; tire.castShadow = true; wg.add(tire);
+    const rim = new THREE.Mesh(rimG, chrome); rim.rotation.x = Math.PI / 2; wg.add(rim);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.29, 8), darkM);
+    hub.rotation.x = Math.PI / 2; wg.add(hub);
+    grp.add(wg); wheels.push(wg);
+  });
+  // đèn pha spotlight (bật ban đêm khi có người lái)
+  const beam = new THREE.SpotLight(0xfff2cc, 0, 30, 0.5, 0.5, 1.1);
+  beam.position.set(2.3, 0.9, 0);
+  grp.add(beam); grp.add(beam.target);
+  beam.target.position.set(14, 0, 0);
+  grp.userData = { wheels, beam, x: 0, z: 0, ry: 0, speed: 0, driver: null };
+  return grp;
+}
+const CAR_COLORS = [0xc0392b, 0x2980b9, 0x1a1a1e, 0xecf0f1, 0xf39c12, 0x27ae60];
+let carMeshes = new Map();
+function syncCarMeshes() {
+  // thêm xe mới
+  for (const c of G.cars) {
+    if (!carMeshes.has(c.id)) {
+      const m = makeCar(c.color);
+      m.position.set(c.x, 0, c.z); m.rotation.y = c.ry;
+      Object.assign(m.userData, { x: c.x, z: c.z, ry: c.ry, speed: 0, driver: c.driver, id: c.id });
+      scene.add(m); carMeshes.set(c.id, m);
+    }
+  }
+  // cập nhật xe đã có (xe mình lái thì client tự điều khiển)
+  for (const [id, m] of carMeshes) {
+    const c = G.cars.find(x => x.id === id);
+    if (!c) { scene.remove(m); carMeshes.delete(id); continue; }
+    const u = m.userData;
+    u.driver = c.driver;
+    if (id !== G.driving) {
+      // nội suy nhẹ về vị trí server
+      u.x += (c.x - u.x) * 0.25; u.z += (c.z - u.z) * 0.25;
+      u.ry = c.ry; u.speed = c.speed || 0;
+      m.position.set(u.x, 0, u.z); m.rotation.y = u.ry;
+    }
+    // bánh xe quay theo tốc độ + đèn pha ban đêm khi có người lái
+    const wSpin = (u.speed || 0) * 0.06;
+    u.wheels.forEach(w => w.rotation.z -= wSpin);
+    u.beam.intensity = (G.night && u.driver) ? 2.2 : 0;
+  }
 }
 // --- Thùng vật phẩm: viền hologram ---
-function makeCrate() {
+// --- Rương 6 bậc: màu + độ phát sáng theo bậc (gỗ → bạch kim) ---
+const TIER_STYLE = {
+  go:       { color: 0x8b5a2b, glow: 0xcc8833, name: 'Gỗ',       size: 0.9,  beam: false },
+  dong:     { color: 0xd08a3e, glow: 0xff9a3c, name: 'Đồng',     size: 0.95, beam: false },
+  sat:      { color: 0x9aa0a8, glow: 0xbfe3ff, name: 'Sắt',      size: 1.0,  beam: false },
+  vang:     { color: 0xc9a227, glow: 0xffd54f, name: 'Vàng',     size: 1.1,  beam: true  },
+  kimcuong: { color: 0x2fd8cc, glow: 0x4ff0e8, name: 'Kim Cương', size: 1.2,  beam: true  },
+  bachkim:  { color: 0xe8ecff, glow: 0xffffff, name: 'Bạch Kim',  size: 1.3,  beam: true  },
+};
+function makeTierCrate(tierId) {
+  const st = TIER_STYLE[tierId] || TIER_STYLE.go;
+  const s = st.size;
   const grp = new THREE.Group();
-  const box = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), new THREE.MeshStandardMaterial({ color: 0x5a4128, roughness: 0.85 }));
-  box.position.y = 0.45; box.castShadow = true; grp.add(box);
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.1, 0.96), new THREE.MeshBasicMaterial({ color: 0xffd54f }));
-  frame.position.y = 0.95; grp.add(frame);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xffd54f, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 }));
-  glow.scale.set(2.2, 2.2, 1); glow.position.y = 0.7; grp.add(glow);
+  const metal = tierId === 'go' || tierId === 'dong' ? 0.15 : 0.85;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(s, s, s),
+    new THREE.MeshStandardMaterial({ color: st.color, roughness: 0.4, metalness: metal, emissive: st.color, emissiveIntensity: 0.12 }));
+  box.position.y = s / 2; box.castShadow = true; grp.add(box);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(s * 1.06, 0.1, s * 1.06),
+    new THREE.MeshBasicMaterial({ color: st.glow }));
+  trim.position.y = s + 0.03; grp.add(trim);
+  // nắp đá quý cho bậc cao
+  if (st.beam) {
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.2),
+      new THREE.MeshBasicMaterial({ color: st.glow }));
+    gem.position.y = s + 0.32; grp.add(gem); grp.userData.gem = gem;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 22, 12, 1, true),
+      new THREE.MeshBasicMaterial({ map: TEX_GLOW, color: st.glow, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.y = 11.6; grp.add(beam); grp.userData.beam = beam;
+  }
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: st.glow, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
+  const gs = 2 + s;
+  glow.scale.set(gs, gs, 1); glow.position.y = 0.7; grp.add(glow);
   grp.userData.glow = glow;
-  return grp;
-}
-// --- Rương trang bị: vàng rực + cột sáng ---
-function makeEquipCrate() {
-  const grp = new THREE.Group();
-  const box = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.25, 1.25),
-    new THREE.MeshStandardMaterial({ color: 0x8a6d1f, roughness: 0.35, metalness: 0.85, emissive: 0x332200, emissiveIntensity: 0.5 }));
-  box.position.y = 0.62; box.castShadow = true; grp.add(box);
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(1.32, 0.16, 1.32),
-    new THREE.MeshBasicMaterial({ color: 0xffe082 }));
-  trim.position.y = 1.28; grp.add(trim);
-  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22),
-    new THREE.MeshBasicMaterial({ color: 0xfff176 }));
-  gem.position.y = 1.55; grp.add(gem); grp.userData.gem = gem;
-  // cột sáng bắn lên trời
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 22, 12, 1, true),
-    new THREE.MeshBasicMaterial({ map: TEX_GLOW, color: 0xffd54f, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  beam.position.y = 11.6; grp.add(beam); grp.userData.beam = beam;
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX_GLOW, color: 0xffd54f, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.75 }));
-  glow.scale.set(3.4, 3.4, 1); glow.position.y = 0.9; grp.add(glow);
-  grp.userData.glow = glow;
+  // bảng tên bậc rương
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+  const cx = cv.getContext('2d');
+  cx.font = 'bold 30px sans-serif'; cx.textAlign = 'center';
+  cx.fillStyle = '#00000088'; cx.fillRect(0, 0, 256, 64);
+  cx.fillStyle = '#' + st.glow.toString(16).padStart(6, '0');
+  cx.fillText('Rương ' + st.name, 128, 42);
+  const tex = new THREE.CanvasTexture(cv);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true }));
+  spr.scale.set(2.6, 0.65, 1); spr.position.y = s + 0.95; grp.add(spr);
   return grp;
 }
 function rebuildCrates() {
   for (const [, m] of crateMeshes) scene.remove(m); crateMeshes.clear();
   for (const c of G.crates) {
-    const m = c.kind === 'equip' ? makeEquipCrate() : makeCrate();
-    m.userData.crateId = c.id; m.userData.isEquip = c.kind === 'equip';
+    const m = makeTierCrate(c.tier || 'go');
+    m.userData.crateId = c.id;
     m.position.set(c.x, 0, c.z); scene.add(m); crateMeshes.set(c.id, m);
   }
 }
@@ -813,19 +1148,36 @@ function upsertPlayer(p) {
   e.data = p;
   e.mesh.position.set(p.x, 0, p.z);
   e.mesh.rotation.y = p.ry;
-  e.mesh.visible = !p.dead;
+  e.mesh.visible = !p.dead && !p.driving; // đang lái xe thì ẩn (ngồi trong xe)
 }
 function removePlayer(id) { const e = otherMeshes.get(id); if (e) { removeCharMixer(e.mesh); scene.remove(e.mesh); otherMeshes.delete(id); } }
 function markDead(id) { const e = otherMeshes.get(id); if (e && e.mesh) e.mesh.rotation.x = -Math.PI / 2; }
 function upsertMonster(mo) {
   let e = monsterMeshes.get(mo.id);
-  if (!e) { e = { mesh: makeMonster(mo.boss) }; scene.add(e.mesh); monsterMeshes.set(mo.id, e); }
+  if (!e) {
+    e = { mesh: makeMonster(mo.boss) }; scene.add(e.mesh); monsterMeshes.set(mo.id, e);
+    if (e.mesh.userData.hpCv) drawHpBar(e.mesh.userData, 1); // vẽ đầy lúc mới tạo
+  }
   e.data = mo;
   e.mesh.userData.monsterId = mo.id;
   e.mesh.position.set(mo.x, 0, mo.z);
+  // sprite hạng quái trên đầu (F→SSS) + cướp thì thêm icon
+  if (mo.rank && e.mesh.userData.rankShown !== mo.rank + (mo.bandit ? 'B' : '')) {
+    e.mesh.userData.rankShown = mo.rank + (mo.bandit ? 'B' : '');
+    if (e.mesh.userData.rankSpr) e.mesh.remove(e.mesh.userData.rankSpr);
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+    const g = cv.getContext('2d');
+    g.font = 'bold 34px sans-serif'; g.textAlign = 'center';
+    g.fillStyle = '#000a'; g.fillRect(14, 4, 100, 44);
+    g.fillStyle = mo.rankColor || '#fff';
+    g.fillText((mo.bandit ? '🔪' : '') + mo.rank, 64, 38);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthWrite: false, transparent: true }));
+    spr.scale.set(1.7, 0.85, 1); spr.position.y = mo.boss ? 5.4 : 3.6;
+    e.mesh.add(spr); e.mesh.userData.rankSpr = spr;
+  }
   const ratio = Math.max(0, mo.hp / mo.maxHp);
-  e.mesh.userData.hpFg.scale.x = ratio;
-  e.mesh.userData.hpFg.position.x = -(1 - ratio) * e.mesh.userData.hpW / 2;
+  const _ud = e.mesh.userData;
+  if (_ud.hpCv && _ud._lastHp !== ratio) { _ud._lastHp = ratio; drawHpBar(_ud, ratio); }
 }
 function syncMonsterMeshes(ids) {
   for (const [id, e] of monsterMeshes) if (!ids.includes(id)) { scene.remove(e.mesh); monsterMeshes.delete(id); }
@@ -869,11 +1221,12 @@ function slashFX(x, z, ry) {
 function updateSky(dt) {
   const night = G.night;
   const k = night ? 1 : 0;
-  skyDome.rotation.y += dt * 0.004;
-  sunLight.intensity = 0.75 * (1 - k) + 0.04;
-  sunLight.color.setHex(night ? 0x8fa8ff : 0xff9a5c);
+  if (typeof skyDome !== 'undefined' && skyDome) skyDome.rotation.y += dt * 0.004;
+  const raining = G.weather === 'mua';
+  sunLight.intensity = (1.15 * (1 - k) + 0.06) * (raining ? 0.6 : 1);
+  sunLight.color.setHex(night ? 0x8fa8ff : 0xffe0b3);
   moonLight.intensity = 0.5 * k;
-  hemi.intensity = 0.55 * (1 - k) + 0.2;
+  hemi.intensity = (0.75 * (1 - k) + 0.25) * (raining ? 0.8 : 1);
   scene.fog.density = 0.028 + k * 0.012;
   // sấm sét ngẫu nhiên (dày hơn vào ban đêm)
   boltTimer -= dt;
@@ -884,6 +1237,40 @@ function updateSky(dt) {
       setTimeout(() => { lightningLight.intensity = 1.8; setTimeout(() => lightningLight.intensity = 0, 90); }, 110);
     }, 120);
     boltTimer = (night ? 5 : 12) + Math.random() * 10;
+  }
+  // --- mặt trời / mặt trăng / sao / mưa (mới) ---
+  const dayFrac = (G.dayTime / CFG.dayLength) % 1;
+  const R = 320;
+  if (typeof sunMesh !== 'undefined' && sunMesh) {
+    const sa = dayFrac * Math.PI; // 0→π: đông → tây, cao nhất giữa trưa
+    const se = Math.sin(sa) * 0.85 + 0.15;
+    sunMesh.position.set(G.pos.x + Math.cos(sa) * R, se * R * 0.75 + 15, G.pos.z - 80);
+    sunMesh.visible = !night;
+    // đèn bám theo người chơi (giữ nguyên góc chiếu đẹp)
+    sunLight.position.set(G.pos.x + 50, 42, G.pos.z + 25);
+    sunLight.target.position.set(G.pos.x, 0, G.pos.z);
+    sunLight.target.updateMatrixWorld();
+  }
+  if (typeof moonMesh !== 'undefined' && moonMesh) {
+    const mang = dayFrac * Math.PI * 2 - Math.PI / 2 + Math.PI;
+    moonMesh.position.set(G.pos.x + Math.cos(mang) * R * 0.8, Math.max(12, Math.sin(mang) * R * 0.7), G.pos.z - 60);
+    moonMesh.visible = !!night;
+  }
+  if (typeof starPts !== 'undefined' && starPts) {
+    starPts.position.set(G.pos.x, 0, G.pos.z);
+    starPts.material.opacity += (((night && !raining) ? 0.95 : 0) - starPts.material.opacity) * Math.min(1, dt * 2);
+  }
+  if (typeof rainPts !== 'undefined' && rainPts) {
+    rainPts.visible = raining;
+    if (raining) {
+      rainPts.position.set(G.pos.x, 0, G.pos.z);
+      const p = rainPts.geometry.attributes.position.array;
+      for (let i = 0; i < 900; i++) {
+        p[i * 3 + 1] -= rainVel[i] * dt;
+        if (p[i * 3 + 1] < 0) p[i * 3 + 1] = 30;
+      }
+      rainPts.geometry.attributes.position.needsUpdate = true;
+    }
   }
 }
 
@@ -917,6 +1304,17 @@ function initTouchControls() {
   const atk = document.getElementById('btn-atk'), loot = document.getElementById('btn-loot');
   if (atk) atk.addEventListener('pointerdown', (e) => { e.preventDefault(); doAttack(); });
   if (loot) loot.addEventListener('pointerdown', (e) => { e.preventDefault(); tryLoot(); });
+  const snd = document.getElementById('btn-sound');
+  if (snd) snd.addEventListener('click', () => { SFX.init(); const on = SFX.toggle(); snd.textContent = on ? '🔊' : '🔇'; sysMsg(on ? 'Đã bật âm thanh.' : 'Đã tắt âm thanh.'); });
+  const mic = document.getElementById('btn-mic');
+  if (mic) {
+    mic.classList.add('off');
+    mic.addEventListener('click', () => VC.toggleMic());
+    // giữ nút mic trên cảm ứng = push-to-talk
+    mic.addEventListener('pointerdown', () => VC.setTalking(true));
+    mic.addEventListener('pointerup', () => VC.setTalking(false));
+    mic.addEventListener('pointerleave', () => VC.setTalking(false));
+  }
 }
 
 // ---------- CLICK-TO-MOVE: click đất/quái/thùng để tự đi tới ----------
@@ -989,13 +1387,21 @@ function initInput() {
     G.keys[e.key.toLowerCase()] = true;
     if (e.key === 'Enter') openChat();
     if (e.key === ' ') doAttack();
-    if (e.key.toLowerCase() === 'e') tryLoot();
+    if (e.key.toLowerCase() === 'e') {
+      if (G.driving) exitCar();
+      else { const car = nearestCar(); if (car) enterCar(car); else tryLoot(); }
+    }
     if (e.key.toLowerCase() === 'b') togglePanel('craft');
     if (e.key.toLowerCase() === 'i') togglePanel('inventory');
     if (e.key.toLowerCase() === 'g') dropSelected();
     if (e.key.toLowerCase() === 'u') togglePanel('equipment');
+    if (e.key.toLowerCase() === 'm') { G.mapMode = (G.mapMode + 1) % 3; sysMsg(['Đã tắt minimap', 'Minimap nhỏ', 'Minimap lớn'][G.mapMode]); }
+    if (e.key.toLowerCase() === 'v' && !e.repeat) VC.setTalking(true);
   });
-  addEventListener('keyup', (e) => { G.keys[e.key.toLowerCase()] = false; });
+  addEventListener('keyup', (e) => {
+    G.keys[e.key.toLowerCase()] = false;
+    if (e.key.toLowerCase() === 'v') VC.setTalking(false);
+  });
 
   // Kéo chuột để xoay camera (không cần khóa con trỏ nữa)
   const cv = renderer.domElement;
@@ -1062,6 +1468,8 @@ function closeChat() { document.getElementById('chat-input').blur(); }
 
 function updatePlayer(dt) {
   if (G.dead || G.chatting) return;
+  if (G.driving) updateDriving(dt);
+  else {
   const now = performance.now(), t = now / 1000;
   const k = G.keys;
   let mx = 0, mz = 0;
@@ -1077,8 +1485,9 @@ function updatePlayer(dt) {
   if (moving) {
     // phím/joystick đè lên lệnh click chuột
     if (clickTarget) clearClickTarget();
+    // W = tiến theo hướng camera nhìn, D = sang phải màn hình
     const sin = Math.sin(G.camYaw), cos = Math.cos(G.camYaw);
-    wx = mx * cos - mz * sin; wz = mx * sin + mz * cos;
+    wx = -mx * cos - mz * sin; wz = mx * sin - mz * cos;
   } else if (clickTarget) {
     // click-to-move: tự đi tới điểm đã click
     let dx = clickTarget.x - G.pos.x, dz = clickTarget.z - G.pos.z;
@@ -1103,8 +1512,8 @@ function updatePlayer(dt) {
   const sp = CFG.playerSpeed * (sprint ? CFG.sprintMul : 1);
   G.atkAnim = Math.max(0, (G.atkAnim || 0) - dt);
   if (moving && (wx || wz)) {
-    G.pos.x = Math.max(-60, Math.min(60, G.pos.x + wx * sp * dt));
-    G.pos.z = Math.max(-60, Math.min(60, G.pos.z + wz * sp * dt));
+    G.pos.x = Math.max(-190, Math.min(190, G.pos.x + wx * sp * dt));
+    G.pos.z = Math.max(-190, Math.min(190, G.pos.z + wz * sp * dt));
     G.ry = turnToward(G.ry, Math.atan2(wx, wz), dt * 11);
     if (sprint) G.theluc = Math.max(0, G.theluc - dt * 14);
     // camera tự bám sau lưng khi di chuyển (trừ khi vừa xoay tay)
@@ -1132,23 +1541,29 @@ function updatePlayer(dt) {
   }
   if (rimLight) rimLight.position.set(G.pos.x - Math.sin(G.ry) * 2.2, 2.2, G.pos.z - Math.cos(G.ry) * 2.2);
 
-  // camera thứ 3 + rung khi bị đánh
-  G.shake = Math.max(0, G.shake - dt * 1.6);
-  const shx = (Math.random() - .5) * G.shake, shy = (Math.random() - .5) * G.shake;
-  const cd = 7, ch = 3.2;
-  const cx = G.pos.x - Math.sin(G.camYaw) * Math.cos(G.camPitch) * cd + shx;
-  const cz = G.pos.z - Math.cos(G.camYaw) * Math.cos(G.camPitch) * cd;
-  const cy = ch + Math.sin(G.camPitch) * cd + shy;
-  camera.position.set(cx, cy, cz);
-  camera.lookAt(G.pos.x, 1.6, G.pos.z);
-
   if (!updatePlayer._a) updatePlayer._a = 0;
   if (G.online && ++updatePlayer._a % 6 === 0) send({ t: 'move', x: +G.pos.x.toFixed(2), z: +G.pos.z.toFixed(2), ry: +G.ry.toFixed(2), anim: G.anim });
+  } // end else (không lái xe)
+
+  // camera thứ 3 + rung (chạy cả khi đi bộ lẫn lái xe)
+  {
+    const dt2 = 0.016;
+    G.shake = Math.max(0, G.shake - dt2 * 1.6);
+    const shx = (Math.random() - .5) * G.shake, shy = (Math.random() - .5) * G.shake;
+    const cd = G.driving ? 10 : 7, ch = G.driving ? 4.2 : 3.2;
+    const cx = G.pos.x - Math.sin(G.camYaw) * Math.cos(G.camPitch) * cd + shx;
+    const cz = G.pos.z - Math.cos(G.camYaw) * Math.cos(G.camPitch) * cd;
+    const cy = ch + Math.sin(G.camPitch) * cd + shy;
+    camera.position.set(cx, cy, cz);
+    camera.lookAt(G.pos.x, 1.6, G.pos.z);
+    if (G.driving && performance.now() - lastDragT > 1800) G.camYaw = turnToward(G.camYaw, G.ry, dt2 * 3);
+  }
 }
 function doAttack() {
   if (G.dead || G.chatting || G.attackCd > 0) return;
   G.attackCd = 0.45;
   G.anim = 'atk';
+  SFX.play('swing');
   const dmg = WEAPONS[G.weapon].dmg + myDmgBonus();
   slashFX(G.pos.x + Math.sin(G.ry) * 1.4, G.pos.z + Math.cos(G.ry) * 1.4, G.ry);
   G.atkAnim = 0.3;
@@ -1160,10 +1575,12 @@ function doAttack() {
   if (best) {
     burstSparks(best.mo.x, 1.2, best.mo.z, 0xffd54f);
     dmgNumber(best.mo.x, 2.4, best.mo.z, dmg);
+    SFX.play('hit');
     if (G.online) send({ t: 'hit', monsterId: best.id, dmg });
     else {
       best.mo.hp -= dmg;
       if (best.mo.hp <= 0) {
+        SFX.play('die');
         offMonsters = offMonsters.filter(m => m.id !== best.id);
         burstSparks(best.mo.x, 1.2, best.mo.z, 0xff4444);
         if (best.mo.boss) { showEnd('CHIẾN THẮNG!', 'Bạn đã tiêu diệt Hắc Thú Vương. Bạn đã đi đến cuối con đường!'); }
@@ -1185,11 +1602,94 @@ function nearestDrop() {
   for (const d of G.drops) { const dd = Math.hypot(d.x - G.pos.x, d.z - G.pos.z); if (dd < bd) { bd = dd; best = d; } }
   return best;
 }
+// ---------- LÁI XE ----------
+function nearestCar() {
+  let best = null, bd = 4.5;
+  for (const c of G.cars) {
+    const m = carMeshes.get(c.id); if (!m) continue;
+    const d = Math.hypot(m.userData.x - G.pos.x, m.userData.z - G.pos.z);
+    if (d < bd && !m.userData.driver) { bd = d; best = c; }
+  }
+  return best;
+}
+function enterCar(c) {
+  const m = carMeshes.get(c.id); if (!m || m.userData.driver) return;
+  G.driving = c.id;
+  m.userData.driver = G.myId || 'me';
+  playerMesh.visible = false;
+  SFX.engineStart(); SFX.play('horn');
+  sysMsg('Đã lên xe — W/S ga/phanh, A/D lái, Space phanh tay, E xuống xe.');
+  if (G.online) send({ t: 'enterCar', carId: c.id });
+  document.getElementById('hint').innerHTML = '🚗 <b>W/S</b> ga/phanh · <b>A/D</b> đánh lái · <b>Space</b> phanh tay · <b>E</b> xuống xe · Vẫn đâm được quái!';
+}
+function exitCar() {
+  if (!G.driving) return;
+  const m = carMeshes.get(G.driving);
+  if (m) {
+    const u = m.userData;
+    u.speed = 0; u.driver = null;
+    // đặt nhân vật bên cạnh xe
+    G.pos.x = Math.max(-190, Math.min(190, u.x + Math.cos(u.ry) * 2.5));
+    G.pos.z = Math.max(-190, Math.min(190, u.z - Math.sin(u.ry) * 2.5));
+    m.position.set(u.x, 0, u.z);
+  }
+  G.driving = null;
+  playerMesh.visible = true;
+  SFX.engineStop();
+  if (G.online) send({ t: 'exitCar' });
+  document.getElementById('hint').innerHTML = 'WASD / ←↑↓→ / joystick di chuyển · <b>Click</b> vào đất/quái để tự đi/tấn công · Kéo chuột xoay · Space đánh · <b>E</b> nhặt/lên xe · <b>B</b> chế tạo · <b>I</b> túi đồ · <b>U</b> trang bị · <b>M</b> bản đồ · <b>Enter</b> chat';
+}
+function updateDriving(dt) {
+  const m = carMeshes.get(G.driving);
+  if (!m) { G.driving = null; return; }
+  const u = m.userData, k = G.keys;
+  const fwd = (k['w'] || k['arrowup'] ? 1 : 0) - (k['s'] || k['arrowdown'] ? 1 : 0);
+  const steer = (k['a'] || k['arrowleft'] ? 1 : 0) - (k['d'] || k['arrowright'] ? 1 : 0);
+  const brake = k[' '];
+  // physics arcade
+  const maxSp = 19, maxRev = -7;
+  if (fwd > 0) u.speed = Math.min(maxSp, u.speed + 14 * dt);
+  else if (fwd < 0) u.speed = Math.max(maxRev, u.speed - (u.speed > 0 ? 22 : 10) * dt);
+  else u.speed -= Math.sign(u.speed) * Math.min(Math.abs(u.speed), 6 * dt);
+  if (brake) u.speed -= Math.sign(u.speed) * Math.min(Math.abs(u.speed), 30 * dt);
+  // đánh lái tỉ lệ với tốc độ
+  if (Math.abs(u.speed) > 0.5) u.ry += steer * dt * 1.9 * Math.sign(u.speed) * Math.min(1, Math.abs(u.speed) / 8);
+  u.x = Math.max(-190, Math.min(190, u.x + Math.sin(u.ry) * u.speed * dt));
+  u.z = Math.max(-190, Math.min(190, u.z + Math.cos(u.ry) * u.speed * dt));
+  m.position.set(u.x, 0, u.z); m.rotation.y = u.ry;
+  // người đi theo xe (để quái vẫn đuổi + camera bám)
+  G.pos.x = u.x; G.pos.z = u.z; G.ry = u.ry;
+  SFX.engineSet(Math.min(1, Math.abs(u.speed) / maxSp));
+  // tông quái: đâm mạnh gây sát thương lớn
+  if (Math.abs(u.speed) > 5) {
+    for (const [id, mo] of G.monsters) {
+      if (mo._ramCd && performance.now() < mo._ramCd) continue;
+      if (Math.hypot(mo.x - u.x, mo.z - u.z) < 2.6) {
+        mo._ramCd = performance.now() + 800;
+        const dmg = Math.round(25 + Math.abs(u.speed) * 2.5);
+        burstSparks(mo.x, 1.2, mo.z, 0xff6a00);
+        dmgNumber(mo.x, 2.4, mo.z, dmg, '#ff9a3c');
+        SFX.play('hit');
+        if (G.online) send({ t: 'hit', monsterId: id, dmg });
+        else {
+          mo.hp -= dmg;
+          if (mo.hp <= 0) { offMonsters = offMonsters.filter(x => x.id !== id); sysMsg('Đã tông chết một Hắc Thú!'); }
+        }
+      }
+    }
+  }
+  // gửi vị trí xe lên server (10Hz)
+  if (G.online) {
+    if (!updateDriving._n) updateDriving._n = 0;
+    if (++updateDriving._n % 6 === 0) send({ t: 'drive', carId: G.driving, x: +u.x.toFixed(2), z: +u.z.toFixed(2), ry: +u.ry.toFixed(2), speed: +u.speed.toFixed(1) });
+  }
+}
 function tryLoot() {
   if (G.dead) return;
   const c = nearestCrate();
   if (c) {
     burstSparks(c.x, 1, c.z, 0xffd54f);
+    SFX.play('pickup');
     if (G.online) send({ t: 'loot', crateId: c.id });
     else {
       if (c.kind === 'equip') {
@@ -1223,6 +1723,138 @@ function dropSelected() {
 }
 
 // ---------- 7. HUD / UI ----------
+
+// ---------- VOICE CHAT (WebRTC mesh, signaling qua WebSocket server) ----------
+const VC = {
+  peers: new Map(), stream: null, micOn: false, talking: false,
+  rtcCfg: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+  async toggleMic() {
+    if (!G.online) { sysMsg('Voice chat chỉ dùng được khi chơi multiplayer.'); return; }
+    if (this.micOn) { this.setMic(false); return; }
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      this.setMic(true);
+      sysMsg('Đã bật mic — giữ phím V (hoặc giữ nút 🎤) để nói.');
+      // người mới vào sẽ chủ động gọi tất cả người đang có mặt
+      for (const [id] of G.players) if (id !== G.myId) this.call(id);
+    } catch (e) {
+      sysMsg('Không mở được mic: ' + (e.name === 'NotAllowedError' ? 'bạn chưa cho phép.' : e.message));
+    }
+  },
+  setMic(on) {
+    this.micOn = on;
+    const b = document.getElementById('btn-mic');
+    if (b) { b.classList.toggle('off', !on); b.classList.remove('live'); }
+    if (!on) {
+      this.setTalking(false);
+      if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+      for (const id of [...this.peers.keys()]) this.remove(id);
+    } else {
+      this.applyTalk();
+    }
+  },
+  applyTalk() {
+    const live = this.micOn && this.talking && this.stream;
+    if (this.stream) this.stream.getAudioTracks().forEach(t => t.enabled = !!live);
+    const b = document.getElementById('btn-mic');
+    if (b) b.classList.toggle('live', !!live);
+  },
+  setTalking(t) { this.talking = t; this.applyTalk(); },
+  async call(id) {
+    if (!this.micOn || !this.stream || this.peers.has(id)) return;
+    const pc = new RTCPeerConnection(this.rtcCfg);
+    this.peers.set(id, { pc });
+    this.stream.getTracks().forEach(t => pc.addTrack(t, this.stream));
+    pc.onicecandidate = e => { if (e.candidate) send({ t: 'rtc', to: id, data: { ice: e.candidate } }); };
+    pc.ontrack = e => this.attachAudio(id, e.streams[0]);
+    pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) this.remove(id); };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    send({ t: 'rtc', to: id, data: { sdp: pc.localDescription } });
+  },
+  async onSignal(from, data) {
+    if (!this.micOn || !this.stream) return;
+    let p = this.peers.get(from);
+    if (data.sdp) {
+      if (!p) {
+        const pc = new RTCPeerConnection(this.rtcCfg);
+        p = { pc }; this.peers.set(from, p);
+        this.stream.getTracks().forEach(t => pc.addTrack(t, this.stream));
+        pc.onicecandidate = e => { if (e.candidate) send({ t: 'rtc', to: from, data: { ice: e.candidate } }); };
+        pc.ontrack = e => this.attachAudio(from, e.streams[0]);
+        pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) this.remove(from); };
+      }
+      await p.pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if (data.sdp.type === 'offer') {
+        const ans = await p.pc.createAnswer();
+        await p.pc.setLocalDescription(ans);
+        send({ t: 'rtc', to: from, data: { sdp: p.pc.localDescription } });
+      }
+    } else if (data.ice && p) {
+      try { await p.pc.addIceCandidate(new RTCIceCandidate(data.ice)); } catch {}
+    }
+  },
+  attachAudio(id, stream) {
+    let a = document.getElementById('vc-' + id);
+    if (!a) {
+      a = document.createElement('audio');
+      a.id = 'vc-' + id; a.autoplay = true; a.playsInline = true;
+      document.body.appendChild(a);
+    }
+    a.srcObject = stream;
+  },
+  remove(id) {
+    const p = this.peers.get(id);
+    if (p) { try { p.pc.close(); } catch {} this.peers.delete(id); }
+    const a = document.getElementById('vc-' + id);
+    if (a) a.remove();
+  },
+};
+
+// ---------- MINIMAP TOÀN CỤC ----------
+function drawMinimap() {
+  const cv = document.getElementById('minimap');
+  if (!cv || G.mapMode === 0) { if (cv) cv.classList.add('hidden'); return; }
+  const size = G.mapMode === 2 ? 320 : 168;
+  if (cv.width !== size) { cv.width = size; cv.height = size; }
+  cv.classList.remove('hidden');
+  const ctx = cv.getContext('2d');
+  const R = size / 2, WR = 62; // world 120x120
+  const px = v => R + (v / WR) * (R - 6);
+  ctx.clearRect(0, 0, size, size);
+  // nền
+  ctx.beginPath(); ctx.arc(R, R, R - 2, 0, 7);
+  ctx.fillStyle = 'rgba(3,14,22,0.85)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,229,255,0.55)'; ctx.lineWidth = 2; ctx.stroke();
+  // vòng tròn khoảng cách
+  ctx.strokeStyle = 'rgba(0,229,255,0.14)'; ctx.lineWidth = 1;
+  [0.33, 0.66].forEach(k => { ctx.beginPath(); ctx.arc(R, R, (R - 2) * k, 0, 7); ctx.stroke(); });
+  const dot = (x, z, color, r) => {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(px(x), px(z), r || 3, 0, 7); ctx.fill();
+  };
+  // thùng theo bậc rương
+  const TIER_DOT = { go: '#cc8833', dong: '#ff9a3c', sat: '#bfe3ff', vang: '#ffd54f', kimcuong: '#4ff0e8', bachkim: '#ffffff' };
+  for (const c of G.crates) dot(c.x, c.z, TIER_DOT[c.tier] || '#ffca28', c.tier === 'bachkim' || c.tier === 'kimcuong' ? 4.5 : 2.6);
+  // đồ rơi
+  for (const d of G.drops) dot(d.x, d.z, '#4fc3f7', 2);
+  // xe
+  for (const [, car] of carMeshes) { const p = car.userData; dot(p.x, p.z, '#ffffff', 3.4); }
+  // quái (đỏ), boss to hơn
+  for (const [, mo] of G.monsters) dot(mo.x, mo.z, '#ff3838', mo.boss ? 6 : 3.2);
+  // người chơi khác
+  for (const [, p] of G.players) if (p.id !== G.myId && !p.dead) dot(p.x, p.z, '#00e5ff', 3.2);
+  // mình: mũi tên xoay theo hướng
+  ctx.save();
+  ctx.translate(px(G.pos.x), px(G.pos.z));
+  ctx.rotate(Math.atan2(Math.sin(G.ry), Math.cos(G.ry)) * 0 + G.ry);
+  ctx.fillStyle = '#7dff9b';
+  ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 5); ctx.lineTo(0, 2.4); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // chữ NGÀY
+  ctx.fillStyle = 'rgba(125,249,255,0.8)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('NGÀY ' + G.day, R, 14);
+}
 function sysMsg(msg) {
   const box = document.getElementById('sysmsg');
   const div = document.createElement('div'); div.className = 'sys-line'; div.textContent = msg;
@@ -1233,6 +1865,7 @@ function sysMsg(msg) {
   while (box.children.length > 3) box.firstChild.remove();
 }
 function chatMsg(from, msg) {
+  SFX.play('chat');
   const log = document.getElementById('chat-log');
   const div = document.createElement('div');
   div.innerHTML = '<b>◈ ' + escapeHtml(from) + ':</b> ' + escapeHtml(msg);
@@ -1384,6 +2017,7 @@ function renderGear() {
 }
 // ---------- Popup nhận đồ hiếm ----------
 function showLootPopup(e) {
+  SFX.play(e.rarity === 'huyenthoai' ? 'legend' : 'equip');
   let p = document.getElementById('loot-popup');
   if (!p) {
     p = document.createElement('div'); p.id = 'loot-popup'; p.className = 'hidden';
@@ -1451,6 +2085,7 @@ function togglePanel(id) {
 
 function onDeath() {
   G.dead = true;
+  SFX.play('death'); SFX.engineStop();
   showEnd('BẠN ĐÃ GỤC NGÃ', 'Ngày ' + G.day + '. Đừng bỏ cuộc — lần này ta sẽ đi xa hơn!');
   document.getElementById('btn-respawn').style.display = '';
 }
@@ -1537,11 +2172,12 @@ function loop() {
       const ph = (i % 2) * Math.PI + (i < 2 ? 0 : Math.PI * 0.55);
       leg.rotation.x = Math.sin(wt + ph) * 0.65 * spd;
     });
-    // hàm há ra khi gần người chơi
+    // hàm há ra khi gần người chơi + gầm gừ
     const pd = Math.hypot(G.pos.x - m.position.x, G.pos.z - m.position.z);
     const wantOpen = pd < 4 ? 1 : 0;
     u.jawOpen = (u.jawOpen || 0) + (wantOpen - (u.jawOpen || 0)) * Math.min(1, dt * 8);
     if (u.jawG) u.jawG.rotation.x = (u.jawOpen || 0) * 0.55;
+    if (pd < 9 && (!u.growlCd || t > u.growlCd)) { u.growlCd = t + 4 + Math.random() * 4; SFX.play('growl'); }
     // đuôi vẫy + thân thở (giữ tỉ lệ gốc của từng mẫu quái)
     if (u.tail) u.tail.rotation.y = Math.sin(t * 2.6 + m.position.x) * 0.45;
     if (u.body) {
@@ -1570,6 +2206,9 @@ function loop() {
   // update animation xương cho tất cả nhân vật model thật
   for (const ud of charMixers) ud.mixer.update(dt);
   updateHUD();
+  updateSky(dt);
+  if (!loop._mm) loop._mm = 0;
+  if (++loop._mm % 4 === 0) drawMinimap(); // vẽ minimap 15Hz cho nhẹ
   renderer.render(scene, camera);
 }
 
@@ -1577,6 +2216,7 @@ function loop() {
 document.getElementById('btn-start').addEventListener('click', () => {
   const btn = document.getElementById('btn-start');
   btn.textContent = 'ĐANG TẢI NHÂN VẬT...'; btn.disabled = true;
+  SFX.init(); SFX.play('click');
   G.name = document.getElementById('player-name').value.trim() || 'Người sống sót';
   let url = document.getElementById('server-url').value.trim();
   if (url && !url.startsWith('ws')) url = 'wss://' + url.replace(/^https?:\/\//, '');
